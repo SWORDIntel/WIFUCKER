@@ -1,0 +1,90 @@
+#!/bin/bash
+#
+# WIFUCKER Unified Launcher
+# Integrated WiFi + PBKDF2 + Steganography cracking platform
+#
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TUI_SCRIPT="$SCRIPT_DIR/wifucker_unified_tui.py"
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
+# Banner
+echo -e "${CYAN}"
+cat << "EOF"
+╔═══════════════════════════════════════════════════════════════╗
+║                                                               ║
+║          WIFUCKER - Unified Cracking Platform v2.0            ║
+║                                                               ║
+║  WiFi WPA/WPA2 + PBKDF2 + Steganography Password Cracking    ║
+║                                                               ║
+║  Integrated with:                                             ║
+║  • Multi-threaded PBKDF2 dictionary attacks                   ║
+║  • Context-aware password generation                          ║
+║  • Rule-based mutation engine                                 ║
+║  • rockyou wordlist integration (14.3M passwords)             ║
+║  • Hardware acceleration detection (NPU/NCS2/GPU)             ║
+║                                                               ║
+╚═══════════════════════════════════════════════════════════════╝
+EOF
+echo -e "${NC}"
+
+# Check Python version
+if ! command -v python3 &> /dev/null; then
+    echo -e "${RED}[✗] Python 3 not found${NC}"
+    exit 1
+fi
+
+PYTHON_VERSION=$(python3 --version | awk '{print $2}')
+echo -e "${GREEN}[✓] Python ${PYTHON_VERSION}${NC}"
+
+# Check textual framework
+echo -e "${CYAN}[*] Checking dependencies...${NC}"
+if ! python3 -c "import textual" 2>/dev/null; then
+    echo -e "${YELLOW}[!] Installing textual framework...${NC}"
+    pip3 install textual --quiet
+fi
+echo -e "${GREEN}[✓] textual framework OK${NC}"
+
+# Check PBKDF2 cracker modules
+if ! python3 -c "from crackers import PBKDF2Cracker, MutationEngine, ContextWordlistGenerator" 2>/dev/null; then
+    echo -e "${RED}[✗] WIFUCKER crackers module not found${NC}"
+    echo -e "${YELLOW}[!] Make sure you're running this from the WIFUCKER directory${NC}"
+    exit 1
+fi
+echo -e "${GREEN}[✓] PBKDF2 cracker modules loaded${NC}"
+
+# List available features
+echo ""
+echo -e "${CYAN}[*] Available Features:${NC}"
+echo -e "    ${GREEN}✓${NC} PBKDF2 Password Cracking (dictionary/pattern/context/mutations)"
+echo -e "    ${GREEN}✓${NC} rockyou.txt integration (14.3M passwords)"
+echo -e "    ${GREEN}✓${NC} Multi-threaded dictionary attacks (up to 2.8M/sec)"
+echo -e "    ${GREEN}✓${NC} Rule-based password mutations"
+echo -e "    ${GREEN}✓${NC} Context-aware wordlist generation"
+echo -e "    ${GREEN}✓${NC} Real-time progress monitoring"
+
+# Check rockyou.txt
+ROCKYOU_PATH="$HOME/rockyou/rockyou.txt"
+if [ -f "$ROCKYOU_PATH" ]; then
+    SIZE=$(du -h "$ROCKYOU_PATH" | awk '{print $1}')
+    COUNT=$(wc -l < "$ROCKYOU_PATH")
+    echo -e "    ${GREEN}✓${NC} rockyou.txt found (${SIZE}, ${COUNT} passwords)"
+else
+    echo -e "    ${YELLOW}⚠${NC} rockyou.txt not found (download from Tools tab)"
+fi
+
+echo ""
+echo -e "${CYAN}[*] Launching WIFUCKER Unified TUI...${NC}"
+echo ""
+
+# Run the unified TUI
+cd "$SCRIPT_DIR"
+python3 "$TUI_SCRIPT" "$@"
