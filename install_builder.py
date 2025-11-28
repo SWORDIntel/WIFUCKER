@@ -16,7 +16,7 @@ from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
 # Import the compile_runtimes module which contains the actual build logic
-from .compile_runtimes import main as compile_runtimes_main
+from compile_runtimes import main as compile_runtimes_main
 
 console = Console()
 

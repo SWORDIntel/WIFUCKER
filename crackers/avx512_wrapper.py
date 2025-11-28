@@ -25,42 +25,50 @@ class AVX512Cracker:
     def __init__(self):
         self.lib = None
         self.lib_path = None
+        self.cracker_type = None # Stores 'avx512', 'avx2', 'avx', or 'generic'
         self._load_library()
 
-    def _find_library(self) -> Optional[Path]:
-        """Find the compiled AVX-512 library"""
-        # Try current directory
+    def _find_library(self) -> Optional[Tuple[Path, str]]:
+        """Find the compiled cracker library (AVX-512, AVX2, AVX, or Generic)"""
         current_dir = Path(__file__).parent
-        lib_name = 'avx512_cracker.so'
+        
+        # Ordered by preference: AVX-512, AVX2, AVX, Generic
+        lib_variants = [
+            ("cracker_avx512.so", "avx512"),
+            ("cracker_avx2.so", "avx2"),
+            ("cracker_avx.so", "avx"),
+            ("cracker_generic.so", "generic")
+        ]
 
-        # Check current directory
-        lib_path = current_dir / lib_name
-        if lib_path.exists():
-            return lib_path
+        for lib_name, cracker_type in lib_variants:
+            # Check current directory
+            lib_path = current_dir / lib_name
+            if lib_path.exists():
+                return lib_path, cracker_type
+            
+            # Check one level up (if wrapper is in a subdirectory)
+            lib_path = current_dir.parent / lib_name
+            if lib_path.exists():
+                return lib_path, cracker_type
 
-        # Check one level up
-        lib_path = current_dir.parent / lib_name
-        if lib_path.exists():
-            return lib_path
-
-        return None
+        return None, None
 
     def _compile_library(self) -> bool:
         """Attempt to compile the library if not found"""
-        print("[*] AVX-512 library not found, attempting to compile...")
+        print("[*] Cracker library not found, attempting to compile...")
 
         makefile_dir = Path(__file__).parent
         makefile = makefile_dir / 'Makefile'
 
         if not makefile.exists():
-            print("[-] Makefile not found")
+            print("[-] Makefile not found in crackers/ directory.")
             return False
 
-        # Check dependencies
+        # Check dependencies (already handled by setup.sh now, but good to have a check)
         try:
             subprocess.run(['gcc', '--version'], capture_output=True, check=True)
         except:
-            print("[-] GCC not found. Install with: sudo apt install build-essential")
+            print("[-] GCC not found. Please ensure build-essential is installed.")
             return False
 
         # Try to compile
@@ -69,14 +77,14 @@ class AVX512Cracker:
                 ['make', '-C', str(makefile_dir)],
                 capture_output=True,
                 text=True,
-                timeout=60
+                timeout=120 # Increased timeout for potential longer compilation
             )
 
             if result.returncode == 0:
-                print("[+] Successfully compiled AVX-512 library")
+                print("[+] Successfully compiled cracker library.")
                 return True
             else:
-                print(f"[-] Compilation failed: {result.stderr}")
+                print(f"[-] Compilation failed. Output:\n{result.stderr}")
                 return False
 
         except Exception as e:
@@ -84,105 +92,135 @@ class AVX512Cracker:
             return False
 
     def _load_library(self):
-        """Load the AVX-512 shared library"""
-        lib_path = self._find_library()
+        """Load the shared cracker library"""
+        lib_info = self._find_library()
+        lib_path, cracker_type = lib_info
 
         if not lib_path:
             # Try to compile
             if self._compile_library():
-                lib_path = self._find_library()
+                lib_path, cracker_type = self._find_library()
 
         if not lib_path:
-            print("[-] AVX-512 library not available")
-            print("[!] Falling back to OpenVINO/CPU cracker")
+            print("[-] No cracker library available after compilation attempt.")
+            print("[!] Falling back to OpenVINO/CPU cracker.")
+            self.lib = None
+            self.cracker_type = None
             return
 
         try:
             self.lib = ctypes.CDLL(str(lib_path))
             self.lib_path = lib_path
+            self.cracker_type = cracker_type
             self._setup_functions()
-            print(f"[+] Loaded AVX-512 library: {lib_path}")
+            print(f"[+] Loaded cracker library ({self.cracker_type}): {lib_path}")
         except Exception as e:
-            print(f"[-] Failed to load AVX-512 library: {e}")
+            print(f"[-] Failed to load cracker library: {e}")
             self.lib = None
+            self.cracker_type = None
 
     def _setup_functions(self):
-        """Setup C function prototypes"""
+        """Setup C function prototypes based on loaded cracker type"""
         if not self.lib:
             return
 
-        # check_avx512_support()
-        self.lib.check_avx512_support.argtypes = []
-        self.lib.check_avx512_support.restype = ctypes.c_int
+        # Dynamically construct function names based on cracker_type
+        # Functions are named like cracker_init_generic, cracker_crack_avx2, etc.
+        # Except for avx512, which uses just cracker_init, cracker_crack
+        prefix = ""
+        if self.cracker_type == "avx512":
+            # The original avx512_cracker.c uses non-suffixed function names
+            pass
+        elif self.cracker_type:
+            prefix = f"_{self.cracker_type}"
 
         # cracker_init()
-        self.lib.cracker_init.argtypes = [
+        self.lib.__getattr__(f"cracker_init{prefix}").argtypes = [
             ctypes.c_char_p,  # ssid
             ctypes.POINTER(ctypes.c_uint8),  # target_pmk
             ctypes.POINTER(ctypes.c_char_p),  # wordlist
             ctypes.c_size_t,  # wordlist_size
             ctypes.c_int  # num_threads
         ]
-        self.lib.cracker_init.restype = ctypes.c_void_p
+        self.lib.__getattr__(f"cracker_init{prefix}").restype = ctypes.c_void_p
+        # Assign to a more convenient name for the class
+        self.cracker_init_func = self.lib.__getattr__(f"cracker_init{prefix}")
+
 
         # cracker_crack()
-        self.lib.cracker_crack.argtypes = [ctypes.c_void_p]
-        self.lib.cracker_crack.restype = ctypes.c_int
+        self.lib.__getattr__(f"cracker_crack{prefix}").argtypes = [ctypes.c_void_p]
+        self.lib.__getattr__(f"cracker_crack{prefix}").restype = ctypes.c_int
+        self.cracker_crack_func = self.lib.__getattr__(f"cracker_crack{prefix}")
 
         # cracker_get_password()
-        self.lib.cracker_get_password.argtypes = [ctypes.c_void_p]
-        self.lib.cracker_get_password.restype = ctypes.c_char_p
+        self.lib.__getattr__(f"cracker_get_password{prefix}").argtypes = [ctypes.c_void_p]
+        self.lib.__getattr__(f"cracker_get_password{prefix}").restype = ctypes.c_char_p
+        self.cracker_get_password_func = self.lib.__getattr__(f"cracker_get_password{prefix}")
 
         # cracker_get_attempts()
-        self.lib.cracker_get_attempts.argtypes = [ctypes.c_void_p]
-        self.lib.cracker_get_attempts.restype = ctypes.c_uint64
+        self.lib.__getattr__(f"cracker_get_attempts{prefix}").argtypes = [ctypes.c_void_p]
+        self.lib.__getattr__(f"cracker_get_attempts{prefix}").restype = ctypes.c_uint64
+        self.cracker_get_attempts_func = self.lib.__getattr__(f"cracker_get_attempts{prefix}")
 
         # cracker_destroy()
-        self.lib.cracker_destroy.argtypes = [ctypes.c_void_p]
-        self.lib.cracker_destroy.restype = None
+        self.lib.__getattr__(f"cracker_destroy{prefix}").argtypes = [ctypes.c_void_p]
+        self.lib.__getattr__(f"cracker_destroy{prefix}").restype = None
+        self.cracker_destroy_func = self.lib.__getattr__(f"cracker_destroy{prefix}")
+
+
+        # If avx512, also setup check_avx512_support
+        if self.cracker_type == "avx512":
+            self.lib.check_avx512_support.argtypes = []
+            self.lib.check_avx512_support.restype = ctypes.c_int
+            self.check_avx512_support_func = self.lib.check_avx512_support
+        else:
+            self.check_avx512_support_func = None # Not available for other types
 
     def is_available(self) -> bool:
-        """Check if AVX-512 cracking is available"""
-        if not self.lib:
-            return False
-
-        try:
-            return self.lib.check_avx512_support() == 1
-        except:
-            return False
+        """Check if any optimized cracking library is available"""
+        return self.lib is not None and self.cracker_type is not None
 
     def get_cpu_info(self) -> dict:
-        """Get CPU information"""
+        """Get CPU information based on the loaded cracker type"""
         info = {
-            'avx512_support': False,
-            'p_cores': 0,
+            'cracker_type': self.cracker_type,
+            'avx512_support_detected': False,
+            'avx2_support_detected': False,
+            'avx_support_detected': False,
+            'p_cores': 0, # Only avx512_cracker.c truly detects P-cores
             'e_cores': 0,
             'total_cores': 0
         }
 
-        if self.is_available():
-            info['avx512_support'] = True
+        if self.cracker_type == "avx512":
+            info['avx512_support_detected'] = True
+            if self.check_avx512_support_func:
+                try:
+                    # In avx512_cracker.c, this checks the *current* CPU
+                    # For wrapper, this just indicates the compiled type.
+                    # The topology detection in C is more robust.
+                    pass
+                except:
+                    pass
 
-        # Read /proc/cpuinfo
+        elif self.cracker_type == "avx2":
+            info['avx2_support_detected'] = True
+        elif self.cracker_type == "avx":
+            info['avx_support_detected'] = True
+
+        # Read /proc/cpuinfo for general core count
         try:
             with open('/proc/cpuinfo', 'r') as f:
                 content = f.read()
-
-            # Count processors
             info['total_cores'] = content.count('processor')
-
-            # Estimate P-cores and E-cores
-            # This is a rough heuristic
-            if 'Intel' in content:
-                # Assume half are P-cores, half are E-cores for hybrid CPUs
-                # This is simplified; real detection is in C code
-                info['p_cores'] = info['total_cores'] // 2
-                info['e_cores'] = info['total_cores'] - info['p_cores']
-            else:
-                info['p_cores'] = info['total_cores']
-                info['e_cores'] = 0
         except:
             pass
+        
+        # P-core/E-core detection is only robust in the AVX-512 C code.
+        # For other types, we can't reliably determine this from Python without
+        # reimplementing the C logic, so we'll leave them at 0 unless avx512 is loaded
+        # and its topology detection is exposed via a separate function.
+        # For now, it's just 'total_cores'.
 
         return info
 
@@ -194,24 +232,22 @@ class AVX512Cracker:
         num_threads: int = 0
     ) -> Tuple[Optional[str], int, float]:
         """
-        Crack WiFi password using AVX-512
+        Crack WiFi password using the loaded cracker module
 
         Args:
             ssid: Network SSID
             target_pmk: Target PMK (32 bytes)
             wordlist: List of passwords to try
-            num_threads: Number of threads (0 = auto, use all P-cores)
+            num_threads: Number of threads (0 = auto, uses all detected cores for generic/AVX/AVX2,
+                         or all P-cores for AVX-512 if detected by C code)
 
         Returns:
             (password, attempts, time_seconds) or (None, attempts, time_seconds)
         """
         import time
 
-        if not self.lib:
-            raise RuntimeError("AVX-512 library not loaded")
-
-        if not self.is_available():
-            raise RuntimeError("AVX-512 not supported on this CPU")
+        if not self.lib or not self.cracker_type:
+            raise RuntimeError("Cracker library not loaded or type not determined")
 
         if len(target_pmk) != 32:
             raise ValueError("Target PMK must be 32 bytes")
@@ -226,8 +262,8 @@ class AVX512Cracker:
         for i in range(32):
             pmk_array[i] = target_pmk[i]
 
-        # Initialize cracker
-        ctx = self.lib.cracker_init(
+        # Initialize cracker using the dynamically resolved function
+        ctx = self.cracker_init_func(
             ssid.encode('utf-8'),
             pmk_array,
             wordlist_c,
@@ -240,18 +276,18 @@ class AVX512Cracker:
 
         try:
             # Start cracking
-            print(f"[*] Starting AVX-512 crack with {len(wordlist):,} passwords...")
+            print(f"[*] Starting {self.cracker_type} crack with {len(wordlist):,} passwords...")
             start_time = time.time()
 
-            found = self.lib.cracker_crack(ctx)
+            found = self.cracker_crack_func(ctx)
 
             elapsed = time.time() - start_time
 
             # Get results
-            attempts = self.lib.cracker_get_attempts(ctx)
+            attempts = self.cracker_get_attempts_func(ctx)
 
             if found:
-                password = self.lib.cracker_get_password(ctx)
+                password = self.cracker_get_password_func(ctx)
                 password_str = password.decode('utf-8') if password else None
                 return (password_str, attempts, elapsed)
             else:
@@ -259,37 +295,35 @@ class AVX512Cracker:
 
         finally:
             # Cleanup
-            self.lib.cracker_destroy(ctx)
+            self.cracker_destroy_func(ctx)
 
 
-def test_avx512():
-    """Test AVX-512 cracker"""
-    print("AVX-512 Cracker Test")
+def test_cracker_wrapper():
+    """Test the generic cracker wrapper"""
+    print("Cracker Wrapper Test")
     print("=" * 60)
 
-    cracker = AVX512Cracker()
+    cracker = AVX512Cracker() # Class name can remain, it's a wrapper for different types
 
     if not cracker.is_available():
-        print("[-] AVX-512 not available")
-        print("[!] Reasons:")
-        print("    - AVX-512 not supported by CPU")
-        print("    - Library not compiled")
-        print("    - Library compilation failed")
+        print("[-] No optimized cracker available.")
+        print("[!] Falling back to Python-only cracking if available.")
         return
 
-    print("[+] AVX-512 is available!")
+    print(f"[+] Cracker type '{cracker.cracker_type}' is available!")
 
     # Get CPU info
     info = cracker.get_cpu_info()
     print(f"\nCPU Information:")
+    print(f"  Cracker Type: {info['cracker_type']}")
+    print(f"  AVX-512 Support: {'Yes' if info['avx512_support_detected'] else 'No'}")
+    print(f"  AVX2 Support: {'Yes' if info['avx2_support_detected'] else 'No'}")
+    print(f"  AVX Support: {'Yes' if info['avx_support_detected'] else 'No'}")
     print(f"  Total cores: {info['total_cores']}")
-    print(f"  P-cores: {info['p_cores']}")
-    print(f"  E-cores: {info['e_cores']}")
-    print(f"  AVX-512: {'Yes' if info['avx512_support'] else 'No'}")
-
-    print("\n[+] AVX-512 cracker is ready for use!")
-    print("[*] Expected performance: 200,000-500,000 H/s on modern Intel")
+    # P-core/E-core might only be accurately detected by AVX-512 C code
+    if cracker.cracker_type == "avx512":
+        print(f"  P-cores: {info['p_cores']}")
+        print(f"  E-cores: {info['e_cores']}")
 
 
-if __name__ == '__main__':
-    test_avx512()
+    print(f"\n[+] Cracker ({cracker.cracker_type}) is ready for use!")

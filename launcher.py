@@ -22,11 +22,14 @@ from pathlib import Path
 from typing import Optional, List, Tuple
 from rich.console import Console
 from rich.panel import Panel
-from .hw_detection import detect_accelerators
-from .install_builder import check_and_build_runtimes
+from hw_detection import detect_accelerators
+from install_builder import check_and_build_runtimes
 from rich.text import Text
 from rich.theme import Theme
 import argparse
+
+# Add current directory to sys.path for local module imports
+sys.path.insert(0, str(Path(__file__).parent))
 
 # TEMPEST Theme
 tempest_theme = Theme(
@@ -210,7 +213,7 @@ def optimize_adapter(interface: str):
 
     try:
         # Import optimizer
-        from davbest.wifi.capture.adapter_optimizer import AdapterOptimizer
+        from capture.adapter_optimizer import AdapterOptimizer
 
         optimizer = AdapterOptimizer(interface)
 
@@ -245,10 +248,8 @@ def optimize_adapter(interface: str):
 
 def enable_monitor_mode(interface: str) -> str:
     """Enable monitor mode and return monitor interface name"""
-    console.print(f"\n[header][4/5] 📡 ENABLING MONITOR MODE...[/]")
-
     try:
-        from davbest.wifi.capture.monitor_mode import MonitorMode
+        from capture.monitor_mode import MonitorMode
 
         monitor = MonitorMode()
 
@@ -290,7 +291,7 @@ def launch_tui(interface: str, accelerators: Optional[list[str]] = None):
 
     try:
         # Try to import and launch TUI
-        from davbest.wifi.wifi_tui_stable import TempestWiFiTUI as WiFiTUI
+        from wifi_tui import TempestWiFiTUI as WiFiTUI
 
         app = WiFiTUI(interface, accelerators=accelerators)
         app.run()
@@ -306,7 +307,7 @@ def cleanup(interface: str):
     console.print(f"\n[info]🧹 CLEANING UP...[/]")
 
     try:
-        from davbest.wifi.capture.monitor_mode import MonitorMode
+        from capture.monitor_mode import MonitorMode
 
         monitor = MonitorMode()
         success, message = monitor.disable_monitor_mode(interface)

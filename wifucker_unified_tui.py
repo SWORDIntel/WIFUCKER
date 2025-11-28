@@ -17,7 +17,7 @@ Features:
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical, Container, ScrollableContainer
 from textual.widgets import (
-    Header, Footer, Button, Static, Input, Label, Progress, Log,
+    Header, Footer, Button, Static, Input, Label, Log,
     TabbedContent, TabPane, Switch, RadioSet, RadioButton
 )
 from textual.binding import Binding
@@ -27,16 +27,9 @@ import threading
 import asyncio
 
 # Import PBKDF2 cracker modules
-try:
-    from crackers import (
-        PBKDF2Cracker, CrackingResult, MutationEngine, ContextWordlistGenerator
-    )
-except ImportError:
-    import sys
-    sys.path.insert(0, str(Path(__file__).parent))
-    from crackers import (
-        PBKDF2Cracker, CrackingResult, MutationEngine, ContextWordlistGenerator
-    )
+from crackers import (
+    PBKDF2Cracker, CrackingResult, MutationEngine, ContextWordlistGenerator
+)
 
 
 class ProgressMonitor(Static):
@@ -316,11 +309,11 @@ class WiFuFuckerApp(App):
 
     def compose(self) -> ComposeResult:
         yield Header()
-        yield TabbedContent(
-            TabPane("PBKDF2 Cracker", PBKDF2Tab(), id="pbkdf2_tab"),
-            TabPane("Tools", ToolsTab(), id="tools_tab"),
-            id="tabs"
-        )
+        with TabbedContent(id="tabs"):
+            with TabPane("PBKDF2 Cracker", id="pbkdf2_tab"):
+                yield PBKDF2Tab()
+            with TabPane("Tools", id="tools_tab"):
+                yield ToolsTab()
         yield Footer()
 
     def action_quit(self) -> None:
