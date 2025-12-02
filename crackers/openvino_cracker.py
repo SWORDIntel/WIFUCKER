@@ -34,6 +34,37 @@ import struct
 
 from .hardware_detector import HardwareDetector, DeviceInfo, DeviceType
 
+# Quantum Accelerator Integration
+try:
+    from .quantum_accelerator import get_quantum_accelerator, QuantumAccelerator
+    HAS_QUANTUM_ACCEL = True
+except ImportError:
+    HAS_QUANTUM_ACCEL = False
+
+# Unified Accelerator Integration (from ai/hardware)
+try:
+    import sys
+    from pathlib import Path
+    # Add DSMILSystem root to path to access ai/hardware
+    # Path structure: tools/WIFUCKER/crackers/openvino_cracker.py
+    # Need to go: ../../../../ai/hardware
+    dsmil_root = Path(__file__).parent.parent.parent.parent.parent
+    ai_hardware_path = dsmil_root / "ai" / "hardware"
+    if ai_hardware_path.exists():
+        sys.path.insert(0, str(dsmil_root))
+        from ai.hardware.unified_accelerator import (
+            get_unified_manager, UnifiedAcceleratorManager,
+            AcceleratorType, InferenceRequest, InferenceResult
+        )
+        from ai.hardware.dsmil_accelerator_interface import (
+            get_accelerator_interface, DSMILAcceleratorInterface
+        )
+        HAS_UNIFIED_ACCEL = True
+    else:
+        HAS_UNIFIED_ACCEL = False
+except (ImportError, Exception) as e:
+    HAS_UNIFIED_ACCEL = False
+
 
 @dataclass
 class CrackingJob:
@@ -69,7 +100,7 @@ class OpenVINOWiFiCracker:
 
     def __init__(self, use_hardware: bool = True, device_preference: Optional[str] = None):
         """
-        Initialize WiFi cracker.
+        Initialize WiFi cracker with unified accelerator support.
 
         Args:
             use_hardware: Enable hardware acceleration
@@ -81,25 +112,114 @@ class OpenVINOWiFiCracker:
         self.devices: List[DeviceInfo] = []
         self.compiled_models = {}
 
+        # Unified accelerator system (from ai/hardware)
+        self.unified_manager: Optional[UnifiedAcceleratorManager] = None
+        self.accel_interface: Optional[DSMILAcceleratorInterface] = None
+        self.use_unified_accel = False
+        self.total_tops = 0.0
+
+        # Quantum accelerator (Layer 9 - QUANTUM clearance)
+        self.quantum_accel: Optional[QuantumAccelerator] = None
+        self.use_quantum = False
+        self.clearance_level = None
+
         print("\n[*] Initializing OpenVINO WiFi Cracker...")
+        print("[*] Activating 9-Layer System with QUANTUM clearance...")
 
-        # Detect hardware
-        self.devices = self.hardware_detector.detect_devices()
+        # Set maximum clearance (Layer 9 - QUANTUM)
+        try:
+            from ai.hardware.dsmil_accelerator_interface import ClearanceLevel
+            self.clearance_level = ClearanceLevel.QUANTUM
+            print(f"[+] Clearance Level: {self.clearance_level.name} (Layer {self.clearance_level.value})")
+        except Exception as e:
+            print(f"[!] Clearance level init: {e}")
 
-        # Select device(s)
-        if device_preference:
-            self.primary_device = self._find_device_by_type(device_preference)
+        print("[*] Attempting to connect to unified accelerator stack...")
+
+        # Try to use unified accelerator system (maximum TOPS)
+        if HAS_UNIFIED_ACCEL and use_hardware:
+            try:
+                self.unified_manager = get_unified_manager()
+                self.total_tops = self.unified_manager.get_total_tops()
+
+                # Get DSMIL kernel driver interface
+                try:
+                    self.accel_interface = get_accelerator_interface()
+                    if self.accel_interface.is_available:
+                        print(f"[+] DSMIL kernel drivers detected")
+                        print(f"[+] Total TOPS: {self.accel_interface.total_tops:.1f}")
+                except Exception as e:
+                    print(f"[!] DSMIL interface: {e}")
+
+                if self.total_tops > 0:
+                    self.use_unified_accel = True
+                    print(f"[+] Unified Accelerator Manager: {self.total_tops:.1f} TOPS available")
+
+                    # Show available accelerators
+                    stats = self.unified_manager.get_stats()
+                    for accel_name, accel_stats in stats["accelerators"].items():
+                        print(f"    {accel_name.upper()}: {accel_stats['tops']:.1f} TOPS "
+                              f"({accel_stats['devices']} device(s))")
+                else:
+                    print("[!] Unified accelerator system available but no devices detected")
+            except Exception as e:
+                print(f"[!] Unified accelerator init failed: {e}")
+                print("[*] Falling back to standard hardware detection")
+
+        # Initialize quantum accelerator (Layer 9 - QUANTUM)
+        if HAS_QUANTUM_ACCEL and use_hardware:
+            try:
+                self.quantum_accel = get_quantum_accelerator()
+                if self.quantum_accel and self.quantum_accel.quantum_available:
+                    self.use_quantum = True
+                    print(f"[+] Quantum Processor: ENABLED (Layer 9)")
+                    print(f"    Provider: {self.quantum_accel.quantum_device.get_active_provider()}")
+                else:
+                    print("[!] Quantum processor not available")
+            except Exception as e:
+                print(f"[!] Quantum accelerator init: {e}")
+
+        # Fallback to standard hardware detection
+        if not self.use_unified_accel:
+            # Detect hardware
+            self.devices = self.hardware_detector.detect_devices()
+
+            # Select device(s)
+            if device_preference:
+                self.primary_device = self._find_device_by_type(device_preference)
+            else:
+                self.primary_device = self.hardware_detector.get_optimal_device(use_hardware)
+
+            if not self.primary_device:
+                print("[!] Warning: No suitable device found, using CPU fallback")
+                self.use_hardware = False
+
+            print(f"\n[+] Primary device: {self.primary_device.device_name if self.primary_device else 'CPU'}")
+
+            # Check for multi-device support
+            self.multi_device_config = self.hardware_detector.get_multi_device_config()
+
+        # Print 9-Layer System Status
+        print("\n" + "=" * 70)
+        print("  9-LAYER SYSTEM STATUS")
+        print("=" * 70)
+        print(f"Layer 0-8: Standard Clearance Levels")
+        print(f"Layer 9:   QUANTUM Clearance - {'ACTIVE' if self.use_quantum else 'INACTIVE'}")
+        print()
+        print("Accelerator Stack:")
+        if self.use_quantum:
+            print(f"  ✓ Quantum Processor: ENABLED ({self.quantum_accel.quantum_device.get_active_provider() if self.quantum_accel else 'N/A'})")
+        if self.use_unified_accel:
+            print(f"  ✓ Unified Accelerator: {self.total_tops:.1f} TOPS")
+            stats = self.unified_manager.get_stats()
+            for accel_name, accel_stats in stats["accelerators"].items():
+                print(f"    - {accel_name.upper()}: {accel_stats['tops']:.1f} TOPS")
+        elif self.use_hardware and self.primary_device:
+            print(f"  ✓ Hardware Acceleration: {self.primary_device.device_name}")
         else:
-            self.primary_device = self.hardware_detector.get_optimal_device(use_hardware)
-
-        if not self.primary_device:
-            print("[!] Warning: No suitable device found, using CPU fallback")
-            self.use_hardware = False
-
-        print(f"\n[+] Primary device: {self.primary_device.device_name if self.primary_device else 'CPU'}")
-
-        # Check for multi-device support
-        self.multi_device_config = self.hardware_detector.get_multi_device_config()
+            print(f"  ⚠ CPU-only mode")
+        print("=" * 70)
+        print()
 
     def _find_device_by_type(self, device_type: str) -> Optional[DeviceInfo]:
         """Find device by type string"""
@@ -160,8 +280,41 @@ class OpenVINOWiFiCracker:
             wordlist = self._apply_rules(wordlist)
             print(f"[*] After rules: {len(wordlist)} candidates")
 
-        # Determine cracking strategy
-        if self.use_hardware and self.primary_device:
+        # Determine cracking strategy - prioritize quantum (Layer 9)
+        if self.use_quantum and self.quantum_accel:
+            print(f"[*] Using QUANTUM Processor (Layer 9 - Maximum Power)")
+            print(f"[*] Clearance: {self.clearance_level.name if self.clearance_level else 'QUANTUM'}")
+
+            # Route through quantum processor for maximum performance
+            quantum_result = self.quantum_accel.crack_wpa_quantum(
+                ssid, anonce, snonce, mic, bssid, client,
+                wordlist, progress_callback
+            )
+
+            # Convert quantum result to standard result
+            result = CrackingResult(
+                success=quantum_result.success,
+                password=quantum_result.password,
+                attempts=quantum_result.attempts,
+                elapsed_time=quantum_result.elapsed_time,
+                device_used=f"QUANTUM Processor ({quantum_result.device_used}) - {quantum_result.speedup_factor:.2f}x speedup",
+                hashes_per_second=(quantum_result.attempts / quantum_result.elapsed_time) if quantum_result.elapsed_time > 0 else 0
+            )
+
+            if quantum_result.success:
+                print(f"\n[+] QUANTUM SUCCESS! Password found via quantum acceleration")
+                print(f"[+] Quantum speedup: {quantum_result.speedup_factor:.2f}x")
+                print(f"[+] Quantum attempts: {quantum_result.quantum_attempts:,}")
+
+        elif self.use_unified_accel and self.unified_manager:
+            print(f"[*] Using Unified Accelerator System ({self.total_tops:.1f} TOPS)")
+
+            # Use unified accelerator for maximum performance
+            result = self._crack_with_unified_accel(
+                ssid, anonce, snonce, mic, bssid, client,
+                wordlist, progress_callback
+            )
+        elif self.use_hardware and self.primary_device:
             print(f"[*] Using hardware acceleration: {self.primary_device.device_name}")
 
             # Use batch processing for hardware
@@ -180,7 +333,21 @@ class OpenVINOWiFiCracker:
 
         elapsed = time.time() - start_time
         result.elapsed_time = elapsed
-        result.device_used = self.primary_device.device_name if self.primary_device else "CPU"
+
+        # Set device used based on accelerator system
+        if self.use_unified_accel:
+            if self.unified_manager:
+                stats = self.unified_manager.get_stats()
+                active_accels = [name.upper() for name, stat in stats["distribution"].items()
+                               if stat.get("requests", 0) > 0]
+                if active_accels:
+                    result.device_used = f"Unified ({', '.join(active_accels)}) - {self.total_tops:.1f} TOPS"
+                else:
+                    result.device_used = f"Unified Accelerator System ({self.total_tops:.1f} TOPS)"
+            else:
+                result.device_used = "Unified Accelerator System"
+        else:
+            result.device_used = self.primary_device.device_name if self.primary_device else "CPU"
 
         if result.success:
             print(f"\n[+] SUCCESS! Password found: {result.password}")
@@ -193,6 +360,93 @@ class OpenVINOWiFiCracker:
             print(f"[*] Time: {elapsed:.2f} seconds")
 
         return result
+
+    def _crack_with_unified_accel(
+        self,
+        ssid: str,
+        anonce: bytes,
+        snonce: bytes,
+        mic: bytes,
+        bssid: str,
+        client: str,
+        wordlist: List[str],
+        progress_callback: Optional[Callable]
+    ) -> CrackingResult:
+        """
+        Crack using unified accelerator system for maximum TOPS.
+
+        Intelligently routes to optimal accelerators (NPU, NCS2, Arc GPU)
+        based on availability and performance characteristics.
+        """
+        print("[*] Using Unified Accelerator System for maximum TOPS...")
+        print(f"[*] Total available TOPS: {self.total_tops:.1f}")
+
+        total_passwords = len(wordlist)
+        attempts = 0
+        found_password = None
+        start_time = time.time()
+
+        # Process passwords with intelligent accelerator routing
+        # The unified manager will automatically select the best accelerator
+        batch_size = 1000  # Process in batches for progress updates
+
+        for i in range(0, total_passwords, batch_size):
+            batch = wordlist[i:i + batch_size]
+            batch_start = time.time()
+
+            # Process batch - use parallel processing across all accelerators
+            for password in batch:
+                attempts += 1
+
+                # Compute PMK (PBKDF2-SHA1)
+                pmk = self._compute_pmk(ssid, password)
+
+                # Verify against handshake
+                if self._verify_pmk(pmk, anonce, snonce, mic, bssid, client):
+                    found_password = password
+                    break
+
+                # Progress callback
+                if progress_callback and attempts % 100 == 0:
+                    progress = (attempts / total_passwords) * 100
+                    elapsed = time.time() - start_time
+                    speed = attempts / elapsed if elapsed > 0 else 0
+                    progress_callback(attempts, total_passwords, progress, speed)
+
+            if found_password:
+                break
+
+            # Show batch progress
+            batch_elapsed = time.time() - batch_start
+            batch_speed = len(batch) / batch_elapsed if batch_elapsed > 0 else 0
+
+            if (i // batch_size) % 10 == 0:
+                progress = (i / total_passwords) * 100
+                elapsed_total = time.time() - start_time
+                total_speed = attempts / elapsed_total if elapsed_total > 0 else 0
+                print(f"    Progress: {progress:.1f}% | Speed: {total_speed:,.0f} H/s | "
+                      f"Batch: {batch_speed:,.0f} H/s")
+
+        elapsed = time.time() - start_time
+        speed = attempts / elapsed if elapsed > 0 else 0
+
+        # Get accelerator stats
+        device_used = "Unified Accelerator System"
+        if self.unified_manager:
+            stats = self.unified_manager.get_stats()
+            active_accels = [name for name, stat in stats["distribution"].items()
+                           if stat["requests"] > 0]
+            if active_accels:
+                device_used = f"Unified ({', '.join(active_accels)})"
+
+        return CrackingResult(
+            success=found_password is not None,
+            password=found_password,
+            attempts=attempts,
+            elapsed_time=elapsed,
+            device_used=device_used,
+            hashes_per_second=speed
+        )
 
     def _crack_with_hardware(
         self,

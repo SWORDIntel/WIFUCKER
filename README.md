@@ -1,3 +1,23 @@
+# WIFUCKER - 9-Layer System with QUANTUM
+
+## Quick Install
+
+```bash
+cd tools/WIFUCKER
+./install.sh
+```
+
+The installer automatically:
+- ✅ Sets up virtual environment
+- ✅ Installs all dependencies
+- ✅ Configures Layer 9 (QUANTUM) clearance by default
+- ✅ Enables full 9-layer acceleration stack
+- ✅ Routes WPA2/PSK2 through all acceleration layers
+
+See [INSTALL.md](INSTALL.md) for detailed installation instructions.
+
+---
+
 # WIFUCKER
 
 WIFUCKER is a comprehensive suite of tools for Wi-Fi security testing and network analysis. It provides a wide range of capabilities, from network scanning and packet capture to advanced password cracking accelerated by specialized hardware.

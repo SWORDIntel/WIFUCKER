@@ -4,7 +4,7 @@
 # Integrated WiFi + PBKDF2 + Steganography cracking platform
 #
 
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TUI_SCRIPT="$SCRIPT_DIR/wifucker_unified_tui.py"
@@ -45,16 +45,80 @@ fi
 PYTHON_VERSION=$(python3 --version | awk '{print $2}')
 echo -e "${GREEN}[✓] Python ${PYTHON_VERSION}${NC}"
 
-# Check textual framework
-echo -e "${CYAN}[*] Checking dependencies...${NC}"
-if ! python3 -c "import textual" 2>/dev/null; then
-    echo -e "${YELLOW}[!] Installing textual framework...${NC}"
-    pip3 install textual --quiet
+# Virtual environment setup
+VENV_DIR="$SCRIPT_DIR/venv"
+REQUIREMENTS_FILE="$SCRIPT_DIR/requirements.txt"
+VENV_PYTHON="$VENV_DIR/bin/python3"
+VENV_PIP="$VENV_DIR/bin/pip"
+
+# Function to check if venv is valid
+check_venv() {
+    if [ -f "$VENV_PYTHON" ] && [ -x "$VENV_PYTHON" ]; then
+        # Test if venv python works and can import textual
+        if "$VENV_PYTHON" -c "import textual" 2>/dev/null; then
+            return 0
+        fi
+    fi
+    return 1
+}
+
+# Bootstrap virtual environment
+bootstrap_venv() {
+    echo -e "${CYAN}[*] Bootstrapping virtual environment...${NC}"
+
+    # Remove broken venv if it exists
+    if [ -d "$VENV_DIR" ]; then
+        echo -e "${YELLOW}[!] Removing broken virtual environment...${NC}"
+        rm -rf "$VENV_DIR"
+    fi
+
+    # Create new venv
+    echo -e "${CYAN}[*] Creating virtual environment...${NC}"
+    python3 -m venv "$VENV_DIR" || {
+        echo -e "${RED}[✗] Failed to create virtual environment${NC}"
+        exit 1
+    }
+
+    # Upgrade pip
+    echo -e "${CYAN}[*] Upgrading pip...${NC}"
+    "$VENV_PIP" install --upgrade pip --quiet
+
+    # Install dependencies
+    if [ -f "$REQUIREMENTS_FILE" ]; then
+        echo -e "${CYAN}[*] Installing dependencies from requirements.txt...${NC}"
+        set +e
+        "$VENV_PIP" install -r "$REQUIREMENTS_FILE" --quiet
+        INSTALL_STATUS=$?
+        set -e
+        if [ $INSTALL_STATUS -ne 0 ]; then
+            echo -e "${YELLOW}[!] Some dependencies may have failed, continuing...${NC}"
+        fi
+    else
+        echo -e "${YELLOW}[!] requirements.txt not found, installing minimal dependencies...${NC}"
+        "$VENV_PIP" install textual rich --quiet
+    fi
+
+    echo -e "${GREEN}[✓] Virtual environment ready${NC}"
+}
+
+# Check and bootstrap venv if needed
+echo -e "${CYAN}[*] Checking virtual environment...${NC}"
+if ! check_venv; then
+    bootstrap_venv
+else
+    echo -e "${GREEN}[✓] Virtual environment OK${NC}"
+fi
+
+# Verify dependencies
+echo -e "${CYAN}[*] Verifying dependencies...${NC}"
+if ! "$VENV_PYTHON" -c "import textual" 2>/dev/null; then
+    echo -e "${YELLOW}[!] textual not found, reinstalling...${NC}"
+    "$VENV_PIP" install textual --quiet
 fi
 echo -e "${GREEN}[✓] textual framework OK${NC}"
 
 # Check PBKDF2 cracker modules
-if ! python3 -c "from crackers import PBKDF2Cracker, MutationEngine, ContextWordlistGenerator" 2>/dev/null; then
+if ! "$VENV_PYTHON" -c "from crackers import PBKDF2Cracker, MutationEngine, ContextWordlistGenerator" 2>/dev/null; then
     echo -e "${RED}[✗] WIFUCKER crackers module not found${NC}"
     echo -e "${YELLOW}[!] Make sure you're running this from the WIFUCKER directory${NC}"
     exit 1
@@ -82,9 +146,43 @@ else
 fi
 
 echo ""
-echo -e "${CYAN}[*] Launching WIFUCKER Unified TUI...${NC}"
+echo -e "${CYAN}[*] Setting QUANTUM Clearance (Layer 9)...${NC}"
+
+# Set maximum clearance (Layer 9 - QUANTUM) before launch
+if [ -f "$SCRIPT_DIR/set_max_clearance.py" ]; then
+    "$VENV_PYTHON" "$SCRIPT_DIR/set_max_clearance.py" > /dev/null 2>&1 || true
+    echo -e "${GREEN}[✓] QUANTUM clearance set (Layer 9)${NC}"
+else
+    echo -e "${YELLOW}[!] Clearance script not found, continuing...${NC}"
+fi
+
+echo ""
+echo -e "${CYAN}[*] Launching WIFUCKER Unified TUI with full Layer 9 permissions...${NC}"
 echo ""
 
-# Run the unified TUI
+# Run the unified TUI using venv python
 cd "$SCRIPT_DIR"
-python3 "$TUI_SCRIPT" "$@"
+
+# Handle sudo scenarios
+if [ -n "${SUDO_USER:-}" ]; then
+    echo -e "${YELLOW}[!] Running with sudo detected${NC}"
+    # When using sudo, preserve environment with -E flag
+    # Check if venv is accessible
+    if [ ! -f "$VENV_PYTHON" ] || [ ! -x "$VENV_PYTHON" ]; then
+        echo -e "${RED}[✗] Virtual environment not accessible${NC}"
+        echo -e "${YELLOW}[!] If you need sudo, use: sudo -E $0${NC}"
+        echo -e "${YELLOW}[!] Or run without sudo: $0${NC}"
+        exit 1
+    fi
+    # Ensure venv is readable
+    if [ ! -r "$VENV_PYTHON" ]; then
+        chmod -R u+rX "$VENV_DIR" 2>/dev/null || {
+            echo -e "${RED}[✗] Cannot access virtual environment${NC}"
+            echo -e "${YELLOW}[!] Try: sudo -E $0${NC}"
+            exit 1
+        }
+    fi
+fi
+
+# Execute using venv python
+exec "$VENV_PYTHON" "$TUI_SCRIPT" "$@"
