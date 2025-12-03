@@ -7,6 +7,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPTS_DIR="$SCRIPT_DIR/scripts"
 TUI_SCRIPT="$SCRIPT_DIR/wifucker_unified_tui.py"
 
 # Colors
@@ -149,8 +150,9 @@ echo ""
 echo -e "${CYAN}[*] Setting QUANTUM Clearance (Layer 9)...${NC}"
 
 # Set maximum clearance (Layer 9 - QUANTUM) before launch
-if [ -f "$SCRIPT_DIR/set_max_clearance.py" ]; then
-    "$VENV_PYTHON" "$SCRIPT_DIR/set_max_clearance.py" > /dev/null 2>&1 || true
+CLEARANCE_SCRIPT="$SCRIPTS_DIR/set_max_clearance.py"
+if [ -f "$CLEARANCE_SCRIPT" ]; then
+    "$VENV_PYTHON" "$CLEARANCE_SCRIPT" > /dev/null 2>&1 || true
     echo -e "${GREEN}[✓] QUANTUM clearance set (Layer 9)${NC}"
 else
     echo -e "${YELLOW}[!] Clearance script not found, continuing...${NC}"

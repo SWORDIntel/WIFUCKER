@@ -21,14 +21,9 @@ import sys
 from pathlib import Path
 
 # Add DSMILSystem root to path
-# Path: tools/WIFUCKER/set_max_clearance.py -> DSMILSystem/
-dsmil_root = Path(__file__).parent.parent.parent.parent
+dsmil_root = Path(__file__).resolve().parents[2]  # .../DSMILSystem
 if not (dsmil_root / "ai").exists():
-    # Try alternative path structure
-    dsmil_root = Path(__file__).parent.parent.parent
-    if not (dsmil_root / "ai").exists():
-        # Current working directory might be DSMILSystem
-        dsmil_root = Path.cwd()
+    dsmil_root = Path.cwd()
 
 sys.path.insert(0, str(dsmil_root))
 print(f"[*] Using DSMIL root: {dsmil_root}")
@@ -159,4 +154,3 @@ def set_max_clearance():
 if __name__ == "__main__":
     success = set_max_clearance()
     sys.exit(0 if success else 1)
-

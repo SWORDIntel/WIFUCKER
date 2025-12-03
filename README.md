@@ -1,20 +1,13 @@
 # WIFUCKER - 9-Layer System with QUANTUM
 
-## Quick Install
+## Quick Install & Launch
 
 ```bash
 cd tools/WIFUCKER
-./install.sh
+./wifucker
 ```
 
-The installer automatically:
-- ✅ Sets up virtual environment
-- ✅ Installs all dependencies
-- ✅ Configures Layer 9 (QUANTUM) clearance by default
-- ✅ Enables full 9-layer acceleration stack
-- ✅ Routes WPA2/PSK2 through all acceleration layers
-
-See [INSTALL.md](INSTALL.md) for detailed installation instructions.
+The launcher bootstraps the virtual environment, installs dependencies, sets QUANTUM (Layer 9) clearance, and starts the unified TUI. For manual setup utilities, see `scripts/` and [docs/INSTALL.md](docs/INSTALL.md).
 
 ---
 
@@ -54,7 +47,7 @@ This project is designed to take advantage of modern hardware for accelerating c
 
 ## Getting Started
 
-To get started, explore the various modules and scripts in this repository. The `launcher.py` script may be a good starting point for accessing the different functionalities.
+Use `./wifucker` for the full guided flow (install + TUI). Supporting utilities and hardware helpers live in `scripts/`.
 
 ***
 

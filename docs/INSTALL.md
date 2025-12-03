@@ -4,10 +4,10 @@
 
 ```bash
 cd /run/media/john/bc5e73fe-fa71-4ed0-802c-36fc31781616/DSMIL/DSMILSystem/tools/WIFUCKER
-./install.sh
+./wifucker
 ```
 
-The installer will:
+The launcher will:
 - ✅ Create virtual environment
 - ✅ Install all dependencies
 - ✅ Set Layer 9 (QUANTUM) clearance by default
@@ -61,7 +61,7 @@ sudo -E ./wifucker
 
 ### Check Total TOPS
 ```bash
-python3 check_tops.py
+python3 scripts/check_tops.py
 ```
 
 ## Manual Installation
@@ -80,7 +80,7 @@ pip install -r requirements.txt
 pip install qiskit qiskit-aer
 
 # Set Layer 9 clearance
-python3 set_max_clearance.py
+python3 scripts/set_max_clearance.py
 
 # Launch
 ./wifucker
@@ -92,12 +92,12 @@ After installation, verify:
 
 1. **Check clearance level:**
    ```bash
-   python3 set_max_clearance.py
+   python3 scripts/set_max_clearance.py
    ```
 
 2. **Check TOPS:**
    ```bash
-   python3 check_tops.py
+   python3 scripts/check_tops.py
    ```
 
 3. **Launch GUI:**
@@ -110,7 +110,7 @@ After installation, verify:
 ### Virtual environment issues
 ```bash
 rm -rf venv
-./install.sh
+./wifucker
 ```
 
 ### Missing dependencies
@@ -151,5 +151,4 @@ For issues or questions, check:
 - `tools/WIFUCKER/README.md`
 - `tools/WIFUCKER/QUANTUM_INTEGRATION.md` (if exists)
 - Launcher output for error messages
-
 

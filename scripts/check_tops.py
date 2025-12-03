@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 # Add DSMILSystem root to path
-dsmil_root = Path(__file__).parent.parent.parent.parent
+dsmil_root = Path(__file__).resolve().parents[2]  # .../DSMILSystem
 sys.path.insert(0, str(dsmil_root))
 
 try:
@@ -151,4 +151,3 @@ def main():
 if __name__ == "__main__":
     tops = main()
     sys.exit(0)
-

@@ -50,10 +50,15 @@ from textual.widgets import (
 )
 from textual import on
 from textual.binding import Binding
-from pathlib import Path
 from typing import Optional, Callable
 import threading
 import asyncio
+
+ROOT_DIR = Path(__file__).parent
+SCRIPTS_DIR = ROOT_DIR / "scripts"
+VENV_PYTHON = ROOT_DIR / "venv" / "bin" / "python3"
+PYTHON_BIN = str(VENV_PYTHON if VENV_PYTHON.exists() else sys.executable)
+DSMIL_ROOT = ROOT_DIR.parent.parent
 
 # Import PBKDF2 cracker modules
 from crackers import (
@@ -492,21 +497,21 @@ class Quantum9LayerTab(Container):
         yield Label("Quantum Processor & 9-Layer System")
         yield Vertical(
             Label("[bold cyan]TOTAL TOPS:[/] [bold green]Calculating...[/]"),
-            Static(id="total_tops_display", renderable=""),
+            Static("", id="total_tops_display"),
             Label("[cyan]Clearance Level (9-Layer System)[/]"),
-            Static(id="clearance_display", renderable="Loading..."),
+            Static("Loading...", id="clearance_display"),
             Horizontal(
                 Button("Set to QUANTUM (Layer 9)", id="set_quantum", variant="success"),
                 Button("Refresh Status", id="refresh_quantum", variant="primary"),
             ),
             Label("[cyan]Quantum Processor[/]"),
-            Static(id="quantum_status", renderable="Loading..."),
+            Static("Loading...", id="quantum_status"),
             Horizontal(
                 Button("Enable Quantum", id="enable_quantum", variant="success"),
                 Button("Disable Quantum", id="disable_quantum"),
             ),
             Label("[cyan]Unified Accelerator System[/]"),
-            Static(id="accelerator_status", renderable="Loading..."),
+            Static("Loading...", id="accelerator_status"),
             Label("[cyan]System Statistics[/]"),
             Log(id="quantum_log", highlight=True),
             id="quantum_container"
@@ -545,10 +550,8 @@ class Quantum9LayerTab(Container):
 
         # Check clearance level
         try:
-            import sys
-            from pathlib import Path
-            dsmil_root = Path(__file__).parent.parent.parent.parent
-            sys.path.insert(0, str(dsmil_root))
+            dsmil_path = DSMIL_ROOT if (DSMIL_ROOT / "ai").exists() else ROOT_DIR.parent
+            sys.path.insert(0, str(dsmil_path))
 
             from ai.hardware.dsmil_accelerator_interface import ClearanceLevel, get_accelerator_interface
 
@@ -660,9 +663,13 @@ class Quantum9LayerTab(Container):
         def set_worker():
             try:
                 import subprocess
+                clearance_script = SCRIPTS_DIR / "set_max_clearance.py"
+                if not clearance_script.exists():
+                    log.write("[yellow]Clearance script not found[/]")
+                    return
                 result = subprocess.run(
-                    ["python3", "tools/WIFUCKER/set_max_clearance.py"],
-                    cwd=str(Path(__file__).parent.parent.parent.parent),
+                    [PYTHON_BIN, str(clearance_script)],
+                    cwd=str(ROOT_DIR),
                     capture_output=True,
                     text=True,
                     timeout=10
@@ -815,11 +822,10 @@ class WiFuFuckerApp(App):
         def set_clearance():
             try:
                 import subprocess
-                script_dir = Path(__file__).parent
-                clearance_script = script_dir / "set_max_clearance.py"
+                clearance_script = SCRIPTS_DIR / "set_max_clearance.py"
                 if clearance_script.exists():
                     subprocess.run(
-                        [str(script_dir / "venv" / "bin" / "python3"), str(clearance_script)],
+                        [PYTHON_BIN, str(clearance_script)],
                         capture_output=True,
                         timeout=5
                     )

@@ -16,9 +16,10 @@ CYAN='\033[0;36m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Script directory
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
+# Directories
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPTS_DIR="$ROOT_DIR/scripts"
+cd "$ROOT_DIR"
 
 # Banner
 echo -e "${CYAN}"
@@ -54,7 +55,7 @@ echo -e "${GREEN}[✓] Python ${PYTHON_VERSION}${NC}"
 # Create virtual environment
 echo ""
 echo -e "${CYAN}[*] Setting up virtual environment...${NC}"
-VENV_DIR="$SCRIPT_DIR/venv"
+VENV_DIR="$ROOT_DIR/venv"
 
 if [ -d "$VENV_DIR" ]; then
     echo -e "${YELLOW}[!] Virtual environment exists, recreating...${NC}"
@@ -75,8 +76,8 @@ echo -e "${GREEN}[✓] pip upgraded${NC}"
 # Install dependencies
 echo ""
 echo -e "${CYAN}[*] Installing dependencies...${NC}"
-if [ -f "$SCRIPT_DIR/requirements.txt" ]; then
-    pip install -r "$SCRIPT_DIR/requirements.txt" --quiet
+if [ -f "$ROOT_DIR/requirements.txt" ]; then
+    pip install -r "$ROOT_DIR/requirements.txt" --quiet
     echo -e "${GREEN}[✓] Dependencies installed${NC}"
 else
     echo -e "${YELLOW}[!] requirements.txt not found, installing minimal set...${NC}"
@@ -96,8 +97,8 @@ fi
 # Set Layer 9 (QUANTUM) clearance
 echo ""
 echo -e "${CYAN}[*] Setting Layer 9 (QUANTUM) clearance...${NC}"
-if [ -f "$SCRIPT_DIR/set_max_clearance.py" ]; then
-    if python3 "$SCRIPT_DIR/set_max_clearance.py" 2>/dev/null; then
+if [ -f "$SCRIPTS_DIR/set_max_clearance.py" ]; then
+    if python3 "$SCRIPTS_DIR/set_max_clearance.py" 2>/dev/null; then
         echo -e "${GREEN}[✓] QUANTUM clearance (Layer 9) set${NC}"
     else
         echo -e "${YELLOW}[!] Clearance setting may require kernel driver${NC}"
@@ -110,10 +111,10 @@ fi
 # Make launcher executable
 echo ""
 echo -e "${CYAN}[*] Setting up launcher...${NC}"
-chmod +x "$SCRIPT_DIR/wifucker"
-chmod +x "$SCRIPT_DIR/wifucker_unified_tui.py"
-chmod +x "$SCRIPT_DIR/set_max_clearance.py" 2>/dev/null || true
-chmod +x "$SCRIPT_DIR/check_tops.py" 2>/dev/null || true
+chmod +x "$ROOT_DIR/wifucker"
+chmod +x "$ROOT_DIR/wifucker_unified_tui.py"
+chmod +x "$SCRIPTS_DIR/set_max_clearance.py" 2>/dev/null || true
+chmod +x "$SCRIPTS_DIR/check_tops.py" 2>/dev/null || true
 echo -e "${GREEN}[✓] Launcher executable${NC}"
 
 # Create system-wide symlink (optional)
@@ -121,10 +122,10 @@ echo ""
 echo -e "${CYAN}[*] Creating system-wide access...${NC}"
 if [ "$NEEDS_SUDO" = true ]; then
     echo -e "${YELLOW}[!] Run with sudo to create system-wide symlink:${NC}"
-    echo -e "    ${CYAN}sudo ln -sf $SCRIPT_DIR/wifucker /usr/local/bin/wifucker${NC}"
+    echo -e "    ${CYAN}sudo ln -sf $ROOT_DIR/wifucker /usr/local/bin/wifucker${NC}"
 else
     if [ -w "/usr/local/bin" ]; then
-        ln -sf "$SCRIPT_DIR/wifucker" /usr/local/bin/wifucker 2>/dev/null || true
+        ln -sf "$ROOT_DIR/wifucker" /usr/local/bin/wifucker 2>/dev/null || true
         echo -e "${GREEN}[✓] System-wide symlink created${NC}"
     else
         echo -e "${YELLOW}[!] Cannot create system-wide symlink (permission denied)${NC}"
@@ -165,8 +166,8 @@ echo -e "    Clearance Level: ${GREEN}QUANTUM (Layer 9)${NC}"
 # Check TOPS
 echo ""
 echo -e "${CYAN}[*] Checking available TOPS...${NC}"
-if [ -f "$SCRIPT_DIR/check_tops.py" ]; then
-    "$VENV_DIR/bin/python3" "$SCRIPT_DIR/check_tops.py" 2>/dev/null | grep -A 5 "TOTAL" || echo -e "${YELLOW}[!] TOPS check unavailable${NC}"
+if [ -f "$SCRIPTS_DIR/check_tops.py" ]; then
+    "$VENV_DIR/bin/python3" "$SCRIPTS_DIR/check_tops.py" 2>/dev/null | grep -A 5 "TOTAL" || echo -e "${YELLOW}[!] TOPS check unavailable${NC}"
 fi
 
 # Installation complete
@@ -176,7 +177,7 @@ echo -e "${GREEN}  INSTALLATION COMPLETE${NC}"
 echo -e "${GREEN}═══════════════════════════════════════════════════════════${NC}"
 echo ""
 echo -e "${CYAN}To launch WIFUCKER:${NC}"
-echo -e "  ${GREEN}cd $SCRIPT_DIR${NC}"
+echo -e "  ${GREEN}cd $ROOT_DIR${NC}"
 echo -e "  ${GREEN}./wifucker${NC}"
 echo ""
 if [ -L "/usr/local/bin/wifucker" ] || [ -f "/usr/local/bin/wifucker" ]; then
@@ -196,5 +197,3 @@ echo -e "  ${GREEN}sudo -E ./wifucker${NC}"
 echo ""
 echo -e "${GREEN}WIFUCKER is ready with full Layer 9 permissions!${NC}"
 echo ""
-
-

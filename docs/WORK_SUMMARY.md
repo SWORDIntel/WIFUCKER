@@ -68,7 +68,7 @@ Complete integration of WIFUCKER with 9-layer clearance system, quantum processo
 
 ### Files Modified:
 - `ai/hardware/dsmil_accelerator_interface.py`
-- `set_max_clearance.py` (NEW)
+- `scripts/set_max_clearance.py` (NEW)
 
 ### Clearance Levels:
 - **Layer 0**: UNCLASSIFIED
@@ -149,7 +149,7 @@ Complete integration of WIFUCKER with 9-layer clearance system, quantum processo
 ## 8. Total TOPS Display ✅
 
 ### Files:
-- `check_tops.py` (NEW)
+- `scripts/check_tops.py` (NEW)
 - `wifucker_unified_tui.py` (Quantum tab)
 
 ### Features:
@@ -174,7 +174,7 @@ WITH LAYER 9 (QUANTUM ENABLED):
 
 ### File: `wifucker` (launcher)
 - **Automatically sets QUANTUM clearance** before launch
-- **Runs `set_max_clearance.py`** on startup
+- **Runs `scripts/set_max_clearance.py`** on startup
 - **Shows confirmation** when clearance is set
 - **TUI auto-initializes** Layer 9 on mount
 
@@ -182,7 +182,7 @@ WITH LAYER 9 (QUANTUM ENABLED):
 ```bash
 # In launcher:
 echo -e "${CYAN}[*] Setting QUANTUM Clearance (Layer 9)...${NC}"
-"$VENV_PYTHON" "$SCRIPT_DIR/set_max_clearance.py" > /dev/null 2>&1 || true
+"$VENV_PYTHON" "$SCRIPT_DIR/scripts/set_max_clearance.py" > /dev/null 2>&1 || true
 echo -e "${GREEN}[✓] QUANTUM clearance set (Layer 9)${NC}"
 ```
 
@@ -190,7 +190,7 @@ echo -e "${GREEN}[✓] QUANTUM clearance set (Layer 9)${NC}"
 
 ## 10. Installer with Default Configuration ✅
 
-### File: `install.sh` (NEW)
+### File: `scripts/install.sh` (NEW)
 - **One-command installation**
 - **Auto-configures Layer 9** by default
 - **Sets up virtual environment**
@@ -213,10 +213,10 @@ echo -e "${GREEN}[✓] QUANTUM clearance set (Layer 9)${NC}"
 
 ### New Files Created:
 1. `crackers/quantum_accelerator.py` - Quantum processor integration
-2. `set_max_clearance.py` - Set QUANTUM clearance (Layer 9)
-3. `check_tops.py` - Check total TOPS
-4. `install.sh` - Automated installer
-5. `INSTALL.md` - Installation documentation
+2. `scripts/set_max_clearance.py` - Set QUANTUM clearance (Layer 9)
+3. `scripts/check_tops.py` - Check total TOPS
+4. `scripts/install.sh` - Automated installer
+5. `docs/INSTALL.md` - Installation documentation
 
 ### Files Modified:
 1. `wifucker` - Launcher with auto-bootstrap and Layer 9 setup
@@ -248,7 +248,7 @@ echo -e "${GREEN}[✓] QUANTUM clearance set (Layer 9)${NC}"
 ### Installation:
 ```bash
 cd tools/WIFUCKER
-./install.sh
+./wifucker
 ```
 
 ### Launch:
@@ -263,7 +263,7 @@ sudo -E ./wifucker
 
 ### Check TOPS:
 ```bash
-python3 check_tops.py
+python3 scripts/check_tops.py
 ```
 
 ---
@@ -313,4 +313,3 @@ All features implemented and tested:
 - ✅ Installer with defaults
 
 WIFUCKER is now fully integrated with the 9-layer system and quantum processor for maximum performance!
-
