@@ -45,7 +45,7 @@ except ImportError:
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical, Container, ScrollableContainer
 from textual.widgets import (
-    Header, Footer, Button, Static, Input, Label, Log,
+    Header, Footer, Button, Static, Input, Label, Log, RichLog,
     TabbedContent, TabPane, Switch, RadioSet, RadioButton
 )
 from textual import on
@@ -53,6 +53,7 @@ from textual.binding import Binding
 from typing import Optional, Callable
 import threading
 import asyncio
+from rich.text import Text
 
 ROOT_DIR = Path(__file__).parent
 SCRIPTS_DIR = ROOT_DIR / "scripts"
@@ -64,6 +65,12 @@ DSMIL_ROOT = ROOT_DIR.parent.parent
 from crackers import (
     PBKDF2Cracker, CrackingResult, MutationEngine, ContextWordlistGenerator
 )
+
+
+class MarkupLog(RichLog):
+    """Log widget that always treats string input as rich markup."""
+    # RichLog already handles markup strings and Rich renderables natively,
+    # so we can use it directly without custom conversion logic
 
 
 class ProgressMonitor(Static):
@@ -124,7 +131,7 @@ class PBKDF2Tab(Container):
             Label("[yellow]Progress[/]"),
             ProgressMonitor(id="progress_monitor"),
             Label("[green]Results[/]"),
-            Log(id="crack_log", highlight=True),
+            MarkupLog(id="crack_log", highlight=True),
             id="pbkdf2_container"
         )
 
@@ -250,7 +257,7 @@ class WiFiTab(Container):
             Label("[yellow]Progress[/]"),
             ProgressMonitor(id="wifi_progress"),
             Label("[green]Results[/]"),
-            Log(id="wifi_log", highlight=True),
+            MarkupLog(id="wifi_log", highlight=True),
             id="wifi_container"
         )
 
@@ -296,7 +303,8 @@ class WiFiTab(Container):
                 log.write(f"[cyan]Using interface: {interface}[/]")
 
                 scanner = NetworkScanner(interface)
-                networks = scanner.scan(timeout=10)
+                # NetworkScanner expects a duration parameter; timeout would raise
+                networks = scanner.scan(duration=10)
 
                 if networks:
                     log.write(f"[green]Found {len(networks)} network(s):[/]")
@@ -513,7 +521,7 @@ class Quantum9LayerTab(Container):
             Label("[cyan]Unified Accelerator System[/]"),
             Static("Loading...", id="accelerator_status"),
             Label("[cyan]System Statistics[/]"),
-            Log(id="quantum_log", highlight=True),
+            MarkupLog(id="quantum_log", highlight=True),
             id="quantum_container"
         )
 
@@ -709,7 +717,7 @@ class ToolsTab(Container):
             Button("Generate Context Wordlist", id="gen_context"),
             Button("Test Imports", id="test_imports"),
             Button("System Info", id="system_info"),
-            Log(id="tools_log")
+            MarkupLog(id="tools_log")
         )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
