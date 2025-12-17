@@ -861,33 +861,40 @@ impl NpuPerformanceValidator {
         }
     }
 
-    /// Execute remaining test methods (simplified for brevity)
+    /// Execute remaining test methods.
+    /// 
+    /// These methods return mock test results when full test implementations are not available.
+    /// In production, these would execute actual performance tests against the NPU hardware.
     async fn execute_cryptographic_performance_test(&mut self, _config: &PerformanceTestConfig) -> Tpm2Result<PerformanceTestResult> {
-        self.create_placeholder_result(PerformanceTestSuite::CryptographicPerformance, 0.88)
+        self.create_mock_test_result(PerformanceTestSuite::CryptographicPerformance, 0.88)
     }
 
     async fn execute_security_performance_test(&mut self, _config: &PerformanceTestConfig) -> Tpm2Result<PerformanceTestResult> {
-        self.create_placeholder_result(PerformanceTestSuite::SecurityPerformance, 0.91)
+        self.create_mock_test_result(PerformanceTestSuite::SecurityPerformance, 0.91)
     }
 
     async fn execute_multi_engine_test(&mut self, _config: &PerformanceTestConfig) -> Tpm2Result<PerformanceTestResult> {
-        self.create_placeholder_result(PerformanceTestSuite::MultiEngineCoordination, 0.86)
+        self.create_mock_test_result(PerformanceTestSuite::MultiEngineCoordination, 0.86)
     }
 
     async fn execute_thermal_performance_test(&mut self, _config: &PerformanceTestConfig) -> Tpm2Result<PerformanceTestResult> {
-        self.create_placeholder_result(PerformanceTestSuite::ThermalPerformance, 0.89)
+        self.create_mock_test_result(PerformanceTestSuite::ThermalPerformance, 0.89)
     }
 
     async fn execute_power_efficiency_test(&mut self, _config: &PerformanceTestConfig) -> Tpm2Result<PerformanceTestResult> {
-        self.create_placeholder_result(PerformanceTestSuite::PowerEfficiency, 0.84)
+        self.create_mock_test_result(PerformanceTestSuite::PowerEfficiency, 0.84)
     }
 
     async fn execute_production_workload_test(&mut self, _config: &PerformanceTestConfig) -> Tpm2Result<PerformanceTestResult> {
-        self.create_placeholder_result(PerformanceTestSuite::ProductionWorkload, 0.93)
+        self.create_mock_test_result(PerformanceTestSuite::ProductionWorkload, 0.93)
     }
 
-    /// Create placeholder result for simplified test implementations
-    fn create_placeholder_result(&self, test_suite: PerformanceTestSuite, score: f32) -> Tpm2Result<PerformanceTestResult> {
+    /// Create mock test result for test implementations that are not yet fully implemented.
+    /// 
+    /// This is used when actual hardware testing is not available or when specific
+    /// test suites are not yet implemented. These will be replaced
+    /// with actual test execution against NPU hardware when implemented.
+    fn create_mock_test_result(&self, test_suite: PerformanceTestSuite, score: f32) -> Tpm2Result<PerformanceTestResult> {
         Ok(PerformanceTestResult {
             test_suite,
             timestamp_us: 0,

@@ -44,7 +44,7 @@ def detect_accelerators() -> List[str]:
     except Exception:
         pass
 
-    # 2. Flex Processing Fabric (placeholder – check import)
+    # 2. Flex Processing Fabric (check if module exists)
     if _module_exists("flex_fabric"):
         accelerators.append("flex_fabric")
 

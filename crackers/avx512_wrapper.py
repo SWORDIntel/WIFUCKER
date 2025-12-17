@@ -220,7 +220,8 @@ class AVX512Cracker:
         # For other types, we can't reliably determine this from Python without
         # reimplementing the C logic, so we'll leave them at 0 unless avx512 is loaded
         # and its topology detection is exposed via a separate function.
-        # For now, it's just 'total_cores'.
+        # The C library's topology detection is the authoritative source for P/E core counts.
+        # If the library is not loaded or doesn't expose this, we only report total_cores.
 
         return info
 

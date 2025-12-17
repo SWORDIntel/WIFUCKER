@@ -116,6 +116,46 @@ class MonitorMode:
 
         return interfaces
 
+    def is_in_monitor_mode(self, interface: str) -> bool:
+        """
+        Check if an interface is currently in monitor mode
+        
+        Args:
+            interface: Interface name to check
+            
+        Returns:
+            True if interface is in monitor mode, False otherwise
+        """
+        # Method 1: Try using iw dev info
+        returncode, stdout, _ = self._run_command(['iw', 'dev', interface, 'info'], check_root=False)
+        if returncode == 0:
+            for line in stdout.split('\n'):
+                line = line.strip()
+                if line.startswith('type '):
+                    iface_type = line.split()[1]
+                    return iface_type == 'monitor'
+        
+        # Method 2: Try using iwconfig
+        returncode, stdout, _ = self._run_command(['iwconfig', interface], check_root=False)
+        if returncode == 0:
+            return 'Mode:Monitor' in stdout
+        
+        # Method 3: Try using iw dev (list all interfaces)
+        returncode, stdout, _ = self._run_command(['iw', 'dev'], check_root=False)
+        if returncode == 0:
+            current_iface = None
+            for line in stdout.split('\n'):
+                line = line.strip()
+                if line.startswith('Interface '):
+                    iface_name = line.split()[1]
+                    current_iface = iface_name
+                elif line.startswith('type ') and current_iface == interface:
+                    iface_type = line.split()[1]
+                    return iface_type == 'monitor'
+        
+        # If we can't determine, assume not in monitor mode
+        return False
+
     def _get_interface_details(self, iface: str) -> Tuple[str, str, str]:
         """Get PHY, driver, and chipset for interface"""
         phy = "unknown"

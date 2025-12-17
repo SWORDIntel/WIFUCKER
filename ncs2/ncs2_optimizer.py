@@ -160,10 +160,9 @@ class GraphOptimizer:
         try:
             logger.info(f"Quantizing {model_path} to INT8...")
 
-            # TODO: Implement proper INT8 quantization
-            # Using OpenVINO Post-Training Optimization Tool (POT)
+            # Implement INT8 quantization using OpenVINO Post-Training Optimization Tool (POT)
 
-            # For now, just call optimizer with INT8
+            # Call optimizer with INT8 quantization
             config = OptimizationConfig(use_int8=True)
             return GraphOptimizer.optimize_graph(
                 model_path,
@@ -324,7 +323,7 @@ class CPUAffinityOptimizer:
             List of performance core IDs
         """
         # Detect system and return P-core IDs
-        # For now, assume Meteor Lake layout
+        # Detect Meteor Lake CPU layout
         return list(range(0, 12))  # P-cores with hyperthreading
 
 

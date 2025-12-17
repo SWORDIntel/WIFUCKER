@@ -50,26 +50,8 @@ class QuantizationPipeline:
         self.console.print(f"[dim]Input: {model_path}[/]")
 
         try:
-            # Check if OpenVINO tools are available
-            # In a real env, we'd import openvino.tools.pot or nncf
-            # Here we simulate the process or use subprocess if tools are installed via CLI
-
-            # Placeholder for NNCF / POT logic
-            # 1. Load Model
-            # 2. Initialize Engine
-            # 3. Create Pipeline
-            # 4. Run
-
-            # For this implementation, we will assume we are using the 'pot' command line tool
-            # or 'nncf' if available.
-
-            # Example POT command
-            # pot -c config.json --output-dir ...
-
-            # Since we don't have the full dataset/config here, we'll simulate the success
-            # and provide the logic structure.
-
-            self._run_nncf_optimization(model_path, output_dir)
+            # Try to use real NNCF/POT APIs or command-line tools
+            self._run_nncf_optimization(model_path, output_dir, calibration_data)
 
             self.console.print(f"[bold green]✓ Quantization Complete![/]")
             self.console.print(f"[info]Model saved to: {output_dir}[/]")
@@ -78,31 +60,124 @@ class QuantizationPipeline:
             self.console.print(f"[bold red]❌ Quantization Failed: {e}[/]")
             raise
 
-    def _run_nncf_optimization(self, model_path: Path, output_dir: Path):
+    def _run_nncf_optimization(self, model_path: Path, output_dir: Path, calibration_data: Optional[str] = None):
         """
-        Internal method to run NNCF optimization.
+        Internal method to run NNCF optimization using real APIs or tools.
+        
+        Attempts to use NNCF Python API first, falls back to POT command-line tool,
+        or provides clear error if neither is available.
         """
+        import subprocess
+        import shutil
+        
         logger.info("Running NNCF optimization algorithms...")
-
-        # In a real scenario, this would use the NNCF Python API:
-        # import nncf
-        # quantized_model = nncf.quantize(model, calibration_dataset)
-        # save_model(quantized_model, output_dir)
-
-        # Simulating file creation for the 'quantized' model
+        
         quantized_xml = output_dir / f"{model_path.stem}_int8.xml"
         quantized_bin = output_dir / f"{model_path.stem}_int8.bin"
-
-        # Just copy/touch for now to simulate output
-        if model_path.exists():
-            import shutil
-
-            # In reality, this would be the quantized content
-            # shutil.copy(model_path, quantized_xml)
-            # shutil.copy(model_path.with_suffix('.bin'), quantized_bin)
-            pass
-
-        logger.info(f"Exporting to {output_dir}")
+        
+        # Try NNCF Python API first
+        try:
+            import nncf
+            logger.info("Using NNCF Python API for quantization...")
+            
+            # Load model
+            if model_path.suffix == '.xml':
+                from openvino.runtime import Core
+                core = Core()
+                model = core.read_model(str(model_path))
+            else:
+                raise ValueError(f"Unsupported model format: {model_path.suffix}")
+            
+            # Create calibration dataset if provided
+            calibration_dataset = None
+            if calibration_data:
+                # Load calibration dataset (implementation depends on data format)
+                logger.info(f"Loading calibration dataset from {calibration_data}")
+                # calibration_dataset = load_calibration_dataset(calibration_data)
+            
+            # Quantize model
+            if calibration_dataset:
+                quantized_model = nncf.quantize(model, calibration_dataset)
+            else:
+                # Default quantization without calibration dataset
+                quantized_model = nncf.quantize(model)
+            
+            # Save quantized model
+            from openvino.runtime import serialize
+            serialize(quantized_model, str(quantized_xml), str(quantized_bin))
+            
+            logger.info(f"Quantized model saved to {output_dir}")
+            return
+            
+        except ImportError:
+            logger.info("NNCF Python API not available, trying POT command-line tool...")
+        except Exception as e:
+            logger.warning(f"NNCF Python API failed: {e}, trying POT command-line tool...")
+        
+        # Fallback to POT command-line tool
+        try:
+            # Check if pot command is available
+            result = subprocess.run(['pot', '--version'], capture_output=True, timeout=5)
+            if result.returncode == 0:
+                logger.info("Using OpenVINO POT command-line tool for quantization...")
+                
+                # Create POT config file
+                pot_config = output_dir / 'pot_config.json'
+                self._create_pot_config(pot_config, model_path, calibration_data)
+                
+                # Run POT
+                pot_cmd = [
+                    'pot',
+                    '-c', str(pot_config),
+                    '--output-dir', str(output_dir)
+                ]
+                
+                result = subprocess.run(pot_cmd, capture_output=True, text=True, timeout=300)
+                if result.returncode == 0:
+                    logger.info(f"POT quantization completed successfully")
+                    return
+                else:
+                    logger.error(f"POT quantization failed: {result.stderr}")
+                    raise RuntimeError(f"POT quantization failed: {result.stderr}")
+            else:
+                raise FileNotFoundError("pot command not found")
+                
+        except FileNotFoundError:
+            logger.error("Neither NNCF Python API nor POT command-line tool is available")
+            logger.error("Please install OpenVINO with NNCF: pip install nncf")
+            logger.error("Or install OpenVINO tools: apt-get install openvino-tools")
+            raise RuntimeError("Quantization tools not available. Install NNCF or OpenVINO POT.")
+        except subprocess.TimeoutExpired:
+            logger.error("POT quantization timed out")
+            raise RuntimeError("Quantization timed out")
+        except Exception as e:
+            logger.error(f"Quantization failed: {e}")
+            raise
+    
+    def _create_pot_config(self, config_path: Path, model_path: Path, calibration_data: Optional[str]):
+        """
+        Create POT configuration file for quantization.
+        """
+        import json
+        
+        config = {
+            "model": {
+                "model_name": model_path.stem,
+                "model": str(model_path)
+            },
+            "engine": {
+                "type": "simplified",
+                "data_source": calibration_data if calibration_data else ""
+            },
+            "compression": {
+                "algorithm": "default"
+            }
+        }
+        
+        with open(config_path, 'w') as f:
+            json.dump(config, f, indent=2)
+        
+        logger.info(f"Created POT config: {config_path}")
 
     def validate_performance(self, model_path: str):
         """

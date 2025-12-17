@@ -103,38 +103,144 @@ class NetworkScanner:
         import tempfile
         import os
 
-        # Create temporary file for output
-        temp_prefix = tempfile.mktemp(prefix='davbest_scan_')
+        # Check if running as root (airodump-ng requires root)
+        if os.geteuid() != 0:
+            print("[!] airodump-ng requires root privileges")
+            print("[!] Falling back to iw scan (may be less detailed)")
+            return self._scan_with_iw()
 
-        # Build command
-        cmd = ['airodump-ng', self.interface, '-w', temp_prefix, '--output-format', 'csv']
+        # Validate interface is in monitor mode
+        try:
+            result = subprocess.run(
+                ['iw', 'dev', self.interface, 'info'],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                is_monitor = False
+                for line in result.stdout.split('\n'):
+                    line = line.strip()
+                    if line.startswith('type '):
+                        iface_type = line.split()[1]
+                        is_monitor = (iface_type == 'monitor')
+                        break
+                
+                if not is_monitor:
+                    print(f"[!] Warning: Interface {self.interface} is not in monitor mode")
+                    print("[!] airodump-ng requires monitor mode. Attempting to enable...")
+                    # Try to enable monitor mode
+                    from .monitor_mode import MonitorMode
+                    monitor = MonitorMode()
+                    success, message, mon_iface = monitor.enable_monitor_mode(self.interface)
+                    if success:
+                        self.interface = mon_iface
+                        print(f"[+] {message}")
+                    else:
+                        print(f"[-] Failed to enable monitor mode: {message}")
+                        print("[-] Falling back to iw scan")
+                        return self._scan_with_iw()
+        except Exception as e:
+            print(f"[!] Could not verify monitor mode: {e}")
+            print("[!] Continuing with scan attempt...")
+
+        # Verify interface is up
+        try:
+            result = subprocess.run(
+                ['ip', 'link', 'show', self.interface],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                if 'state DOWN' in result.stdout:
+                    print(f"[!] Interface {self.interface} is down, bringing it up...")
+                    subprocess.run(
+                        ['ip', 'link', 'set', self.interface, 'up'],
+                        capture_output=True,
+                        timeout=5
+                    )
+        except Exception as e:
+            print(f"[!] Could not verify interface state: {e}")
+
+        # Create temporary file for output
+        # airodump-ng writes to current working directory, so use absolute path
+        temp_dir = tempfile.gettempdir()
+        temp_dir = os.path.abspath(temp_dir)
+        temp_prefix = os.path.join(temp_dir, f'wifucker_scan_{os.getpid()}')
+        
+        # Change to temp directory so airodump-ng writes there
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(temp_dir)
+        except:
+            pass  # If we can't change dir, airodump-ng will write to current dir
+
+        # Build command - use just the filename, not full path (airodump-ng adds suffix)
+        base_name = os.path.basename(temp_prefix)
+        cmd = ['airodump-ng', self.interface, '-w', base_name, '--output-format', 'csv']
 
         if channel:
             cmd.extend(['-c', str(channel)])
 
+        process = None
         try:
             # Start airodump-ng
+            # Don't capture stderr so we can see errors, but redirect stdout to avoid terminal mess
             process = subprocess.Popen(
                 cmd,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                preexec_fn=os.setsid
+                stdout=subprocess.DEVNULL,  # Suppress terminal output
+                stderr=subprocess.PIPE,  # Capture errors
+                preexec_fn=os.setsid,
+                cwd=temp_dir  # Run in temp directory
             )
 
             self.scan_process = process
+            
+            # Check if process started successfully (wait a moment to see if it crashes immediately)
+            time.sleep(0.5)
+            if process.poll() is not None:
+                # Process exited immediately, likely an error
+                stdout, stderr = process.communicate()
+                error_msg = stderr.decode('utf-8', errors='ignore') if stderr else stdout.decode('utf-8', errors='ignore')
+                if 'monitor mode' in error_msg.lower() or 'monitor' in error_msg.lower():
+                    print("[-] Error: Interface must be in monitor mode for airodump-ng")
+                    print("[-] Falling back to iw scan")
+                    return self._scan_with_iw()
+                elif 'permission' in error_msg.lower() or 'denied' in error_msg.lower():
+                    print("[-] Permission denied. airodump-ng requires root privileges.")
+                    print("[-] Falling back to iw scan")
+                    return self._scan_with_iw()
+                else:
+                    print(f"[-] airodump-ng failed to start: {error_msg[:200]}")
+                    print("[-] Falling back to iw scan")
+                    return self._scan_with_iw()
 
             # Let it run for specified duration
             print(f"[*] Scanning for {duration} seconds...")
             for i in range(duration):
                 time.sleep(1)
-                print(f"\r[*] Progress: {i+1}/{duration} seconds", end='', flush=True)
+                if i % 2 == 0:  # Update every 2 seconds
+                    print(f"\r[*] Progress: {i+1}/{duration} seconds", end='', flush=True)
 
             print()
 
             # Stop process
-            os.killpg(os.getpgid(process.pid), signal.SIGTERM)
-            process.wait(timeout=2)
+            try:
+                os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+                process.wait(timeout=5)
+            except ProcessLookupError:
+                pass  # Process already terminated
+            except subprocess.TimeoutExpired:
+                try:
+                    os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+                except:
+                    pass
 
+        except PermissionError:
+            print("[-] Permission denied. airodump-ng requires root privileges.")
+            print("[-] Falling back to iw scan")
+            return self._scan_with_iw()
         except Exception as e:
             print(f"[-] Error during scan: {e}")
             if process:
@@ -145,21 +251,82 @@ class NetworkScanner:
 
         finally:
             self.scan_process = None
+            # Restore original directory
+            try:
+                os.chdir(original_cwd)
+            except:
+                pass
 
-        # Parse results
-        csv_file = f"{temp_prefix}-01.csv"
-        if os.path.exists(csv_file):
-            networks = self._parse_airodump_csv(csv_file)
-
-            # Clean up temp files
-            for f in os.listdir(os.path.dirname(temp_prefix)):
-                if f.startswith(os.path.basename(temp_prefix)):
-                    try:
-                        os.remove(os.path.join(os.path.dirname(temp_prefix), f))
-                    except:
-                        pass
-
-            return networks
+        # Parse results - wait for file to be written and find the correct file
+        import glob
+        
+        # Wait a moment for file to be written (airodump-ng needs time)
+        time.sleep(2.0)
+        
+        # Try to find the CSV file (airodump-ng creates files with -01, -02, etc.)
+        # airodump-ng writes to current working directory (which we changed to temp_dir)
+        base_name = os.path.basename(temp_prefix)
+        patterns = [
+            os.path.join(temp_dir, f"{base_name}-*.csv"),  # In temp dir (where we chdir'd)
+            f"{temp_prefix}-*.csv",  # Original pattern
+            os.path.join(original_cwd, f"{base_name}-*.csv"),  # In original cwd (fallback)
+        ]
+        
+        csv_files = []
+        for pattern in patterns:
+            csv_files.extend(glob.glob(pattern))
+        
+        # Remove duplicates and sort
+        csv_files = sorted(list(set(csv_files)))
+        
+        if csv_files:
+            # Use the most recent file (highest number, or by modification time)
+            csv_file = max(csv_files, key=lambda f: (os.path.getmtime(f) if os.path.exists(f) else 0, f))
+            
+            # Wait a bit more if file is very small (might still be writing)
+            max_wait = 3
+            wait_count = 0
+            while os.path.getsize(csv_file) < 100 and wait_count < max_wait:
+                time.sleep(1.0)
+                wait_count += 1
+            
+            try:
+                # Debug: check file size and content
+                file_size = os.path.getsize(csv_file)
+                if file_size < 50:
+                    print(f"[!] CSV file is very small ({file_size} bytes), may be incomplete")
+                
+                networks = self._parse_airodump_csv(csv_file)
+                
+                # Clean up temp files
+                try:
+                    for f in os.listdir(temp_dir):
+                        if f.startswith(os.path.basename(temp_prefix)):
+                            try:
+                                os.remove(os.path.join(temp_dir, f))
+                            except:
+                                pass
+                except:
+                    pass
+                
+                if networks:
+                    return networks
+                else:
+                    # Debug: check if file has content
+                    with open(csv_file, 'r', errors='ignore') as f:
+                        content = f.read()
+                        if len(content) > 100:
+                            print(f"[!] CSV file has content ({len(content)} bytes) but no networks parsed")
+                            # Try to see what went wrong
+                            lines = content.split('\n')
+                            print(f"[!] File has {len(lines)} lines")
+                            if len(lines) > 1:
+                                print(f"[!] First line: {lines[0][:100]}")
+                                print(f"[!] Second line: {lines[1][:100] if len(lines) > 1 else 'N/A'}")
+            except Exception as e:
+                print(f"[-] Error parsing CSV file: {e}")
+        else:
+            print(f"[-] No CSV file found matching pattern: {pattern}")
 
         print("[-] No scan results found")
         return []
@@ -267,20 +434,36 @@ class NetworkScanner:
 
     def _scan_with_iw(self) -> List[WiFiNetwork]:
         """Scan using iw (fallback method)"""
+        import os
+        
+        # Try without sudo first (if already root)
+        cmd = ['iw', self.interface, 'scan']
+        if os.geteuid() != 0:
+            # Not root, try with sudo
+            cmd = ['sudo', 'iw', self.interface, 'scan']
+        
         try:
             result = subprocess.run(
-                ['sudo', 'iw', self.interface, 'scan'],
+                cmd,
                 capture_output=True,
                 text=True,
                 timeout=30
             )
 
             if result.returncode != 0:
-                print(f"[-] Scan failed: {result.stderr}")
+                error_msg = result.stderr or result.stdout
+                if 'Operation not permitted' in error_msg or 'Permission denied' in error_msg:
+                    print("[-] Permission denied. iw scan requires root privileges.")
+                    print("[-] Try running with: sudo -E ./wifucker")
+                else:
+                    print(f"[-] Scan failed: {error_msg}")
                 return []
 
             return self._parse_iw_output(result.stdout)
 
+        except FileNotFoundError:
+            print("[-] 'iw' command not found. Install with: sudo apt install iw")
+            return []
         except subprocess.TimeoutExpired:
             print("[-] Scan timed out")
             return []

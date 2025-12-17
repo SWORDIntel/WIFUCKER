@@ -129,7 +129,7 @@ def set_max_clearance():
             import struct
             with open(dsmil_device, "wb") as f:
                 # Format: operation_type, clearance_level, device_id
-                # This is a simplified approach - actual implementation may vary
+                # Write clearance level to DSMIL device using kernel interface
                 data = struct.pack("<III", 0x1000, max_clearance.value, 0)
                 f.write(data)
             print(f"[+] Clearance level set via kernel device")

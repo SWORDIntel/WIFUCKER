@@ -84,9 +84,38 @@ class WiGLEAPI:
             time.sleep(self.rate_limit_delay - elapsed)
         self.last_request_time = time.time()
 
+    def _get_encryption_key(self) -> bytes:
+        """
+        Get or generate encryption key for Fernet.
+        
+        Uses a key file in the same directory as credentials, or generates one.
+        
+        Returns:
+            Fernet encryption key
+        """
+        import os
+        import base64
+        
+        # Key file path: same directory as credentials, named .wigle_key
+        key_file = Path.home() / ".wigle_key"
+        
+        if key_file.exists():
+            # Load existing key
+            with open(key_file, 'rb') as f:
+                return f.read()
+        else:
+            # Generate new key
+            key = Fernet.generate_key()
+            # Save key file with restricted permissions
+            key_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(key_file, 'wb') as f:
+                f.write(key)
+            os.chmod(key_file, 0o600)  # Read/write for owner only
+            return key
+
     def _load_encrypted_credentials(self, file_path: str) -> tuple:
         """
-        Load encrypted WiGLE credentials from file.
+        Load encrypted WiGLE credentials from file using Fernet encryption.
 
         Args:
             file_path: Path to encrypted credentials file
@@ -103,14 +132,20 @@ class WiGLEAPI:
             with open(cred_path, 'rb') as f:
                 encrypted_data = f.read()
 
-            # For now, assume simple JSON (should be encrypted in production)
-            # This is placeholder - real implementation should use Fernet encryption
+            # Try Fernet decryption first
             try:
-                data = json.loads(encrypted_data)
+                key = self._get_encryption_key()
+                fernet = Fernet(key)
+                decrypted_data = fernet.decrypt(encrypted_data)
+                data = json.loads(decrypted_data.decode('utf-8'))
                 return data.get('api_name'), data.get('api_token')
-            except json.JSONDecodeError:
-                # If not JSON, might be encrypted
-                raise ValueError("Credentials file format not recognized")
+            except Exception:
+                # Fallback: try plain JSON (for backward compatibility with unencrypted files)
+                try:
+                    data = json.loads(encrypted_data.decode('utf-8'))
+                    return data.get('api_name'), data.get('api_token')
+                except (json.JSONDecodeError, UnicodeDecodeError):
+                    raise ValueError("Credentials file format not recognized - expected Fernet-encrypted or JSON")
 
         except Exception as e:
             print(f"[!] Error loading credentials: {e}")
@@ -123,14 +158,15 @@ class WiGLEAPI:
         api_token: str
     ):
         """
-        Save WiGLE credentials in encrypted format.
+        Save WiGLE credentials in encrypted format using Fernet encryption.
 
         Args:
             file_path: Path to save credentials
             api_name: WiGLE API name
             api_token: WiGLE API token
         """
-        # Simple JSON storage (should be encrypted in production)
+        import os
+        
         data = {
             'api_name': api_name,
             'api_token': api_token
@@ -139,10 +175,20 @@ class WiGLEAPI:
         cred_path = Path(file_path)
         cred_path.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(cred_path, 'w') as f:
-            json.dump(data, f)
+        # Encrypt using Fernet
+        key = self._get_encryption_key()
+        fernet = Fernet(key)
+        json_data = json.dumps(data).encode('utf-8')
+        encrypted_data = fernet.encrypt(json_data)
 
-        print(f"[+] Credentials saved to: {file_path}")
+        # Write encrypted data
+        with open(cred_path, 'wb') as f:
+            f.write(encrypted_data)
+        
+        # Set restrictive permissions
+        os.chmod(cred_path, 0o600)  # Read/write for owner only
+
+        print(f"[+] Encrypted credentials saved to: {file_path}")
 
     def search_ssid(self, ssid: str, max_results: int = 10) -> List[SSIDLocation]:
         """

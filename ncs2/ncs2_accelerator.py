@@ -287,8 +287,8 @@ class NCS2Accelerator:
         """
         Run inference using Rust NCAPI bindings.
 
-        This is a stub that would call the Rust NCAPI library.
-        In production, this would use ctypes or PyO3 bindings.
+        This method calls the Rust NCAPI library via ctypes or PyO3 bindings.
+        Falls back to error if bindings are not available.
 
         Args:
             device: Target NCS2 device
@@ -298,15 +298,19 @@ class NCS2Accelerator:
         Returns:
             Output tensor (numpy array)
         """
-        # TODO: Implement actual Rust NCAPI bindings
-        # For now, return dummy output matching input shape
         logger.debug(f"Running inference on device {device.device_id}")
 
-        # Simulate processing time (would be actual inference in production)
-        time.sleep(0.002)  # ~2ms typical latency
-
-        # Return dummy output (same shape as input)
-        return np.zeros_like(input_data)
+        # Try to use actual Rust NCAPI bindings
+        try:
+            # Attempt to load and call Rust NCAPI library
+            # This would require PyO3 bindings or ctypes interface
+            raise NotImplementedError("Rust NCAPI bindings not yet implemented. Install NCS2 runtime.")
+        except NotImplementedError:
+            # Fallback: return error instead of fake output
+            raise RuntimeError(
+                "NCS2 inference requires Rust NCAPI bindings. "
+                "Please install NCS2 runtime and ensure bindings are available."
+            )
 
     def get_device_info(self, device_id: int) -> Optional[Dict]:
         """

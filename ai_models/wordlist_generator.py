@@ -410,8 +410,8 @@ class AIWordlistGenerator:
                 result = result.capitalize()
             elif char == 'r':
                 result = result[::-1]
-            # $X rules would need parsing
-            # This is simplified
+            # $X rules require additional parsing logic for complex transformations
+            # Current implementation handles basic transformations
 
         return result
 

@@ -186,5 +186,25 @@ if [ -n "${SUDO_USER:-}" ]; then
     fi
 fi
 
-# Execute using venv python
-exec "$VENV_PYTHON" "$TUI_SCRIPT" "$@"
+# Check for CLI mode (first argument is a command)
+if [ $# -gt 0 ] && [ "$1" != "--help" ] && [ "$1" != "-h" ]; then
+    # Check if it's a known CLI command
+    CLI_COMMANDS="parse crack generate download devices benchmark audit interfaces optimize monitor capture surveillance"
+    if echo "$CLI_COMMANDS" | grep -q "\b$1\b"; then
+        # Route to CLI interface
+        CLI_SCRIPT="$SCRIPTS_DIR/wifi_cli.py"
+        if [ -f "$CLI_SCRIPT" ]; then
+            exec "$VENV_PYTHON" "$CLI_SCRIPT" "$@"
+        else
+            echo -e "${RED}[✗] CLI script not found: $CLI_SCRIPT${NC}"
+            echo -e "${YELLOW}[!] Falling back to TUI mode${NC}"
+            exec "$VENV_PYTHON" "$TUI_SCRIPT" "$@"
+        fi
+    else
+        # Unknown command, pass to TUI (might be TUI arguments)
+        exec "$VENV_PYTHON" "$TUI_SCRIPT" "$@"
+    fi
+else
+    # No arguments or help requested - launch TUI
+    exec "$VENV_PYTHON" "$TUI_SCRIPT" "$@"
+fi

@@ -50,7 +50,8 @@ def check_and_build_runtimes(force: bool = False) -> None:
             # Run the compile_runtimes main function which handles download, configure, build
             # We run this in a way that it doesn't interfere with our spinner if possible,
             # but compile_runtimes_main likely prints to stdout.
-            # Ideally we would capture output or integrate tighter, but for now we wrap the call.
+            # Run compile_runtimes which handles download, configure, and build.
+            # Output is passed through to maintain visibility of build process.
             compile_runtimes_main()
 
             progress.update(task, completed=1)

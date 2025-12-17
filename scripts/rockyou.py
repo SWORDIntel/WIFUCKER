@@ -77,18 +77,12 @@ def ensure_rockyou2024(path: Path = DEFAULT_ROCKYOU_PATH) -> Path:
     target_file = path / "rockyou2024.txt"
     if not target_file.exists():
         # Try downloading the 2024 version
-        # NOTE: Since the user mentioned it's "too big for repo", we assume a direct link is needed.
-        # Using a placeholder or a known magnet/HTTP link would be ideal here.
-        # For now, we'll use a generic placeholder URL that the user might need to swap.
-        # But based on "rockyou2024", it's likely the "RockYou2024" list from other sources.
-        # We will use a known reliable source if available, or prompt the user.
-        # For this implementation, we'll assume a direct HTTP link is provided or we use a known one.
-        # Let's use a placeholder that clearly indicates where to get it if it fails.
-
-        # Using a dummy URL for safety until a real one is confirmed,
-        # but the code structure is ready for aria2c.
-        # If the user provided a link in a previous turn, we'd use it.
-        # Since they didn't, we'll use a comment.
-        pass
+        # NOTE: RockYou2024 wordlist is large and not included in repository.
+        # User must provide download URL or download manually.
+        # Common sources: GitHub releases, security research repositories, or torrents.
+        print(f"[!] RockYou2024 wordlist not found at {target_file}")
+        print("[!] Please download rockyou2024.txt manually or provide download URL")
+        print("[!] The file is typically several GB in size")
+        raise FileNotFoundError(f"RockYou2024 wordlist not found. Please download to: {target_file}")
 
     return target_file

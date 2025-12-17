@@ -178,7 +178,8 @@ class QuantumAccelerator:
         bssid: str,
         client: str,
         wordlist: List[str],
-        progress_callback: Optional[Callable] = None
+        progress_callback: Optional[Callable] = None,
+        eapol_frame: Optional[bytes] = None
     ) -> QuantumCrackResult:
         """
         Crack WPA handshake using quantum acceleration.
@@ -213,7 +214,7 @@ class QuantumAccelerator:
                 pmk = self._compute_pmk(ssid, password)
 
                 # Verify against handshake
-                if self._verify_pmk(pmk, anonce, snonce, mic, bssid, client):
+                if self._verify_pmk(pmk, anonce, snonce, mic, bssid, client, eapol_frame):
                     found_password = password
                     break
 
@@ -259,14 +260,20 @@ class QuantumAccelerator:
         snonce: bytes,
         mic: bytes,
         bssid: str,
-        client: str
+        client: str,
+        eapol_frame: Optional[bytes] = None
     ) -> bool:
-        """Verify PMK against handshake MIC using quantum-accelerated computation"""
+        """
+        Verify PMK against handshake MIC using real MIC computation.
+        
+        Uses the same MIC verification logic as openvino_cracker for correctness.
+        """
         try:
-            # Compute PTK from PMK
+            import struct
+            
+            # Compute PTK from PMK using PRF-512
             # PTK = PRF(PMK, "Pairwise key expansion", Min(AA,SPA) || Max(AA,SPA) || Min(ANonce,SNonce) || Max(ANonce,SNonce))
-            import hmac
-
+            
             # Sort MAC addresses
             macs = sorted([bssid.replace(':', '').lower(), client.replace(':', '').lower()])
             # Sort nonces
@@ -276,27 +283,139 @@ class QuantumAccelerator:
             label = b"Pairwise key expansion"
             data = bytes.fromhex(macs[0] + macs[1] + nonces[0] + nonces[1])
 
-            # Generate PTK (512 bits = 64 bytes)
-            ptk = b""
-            for i in range(4):  # 4 x 128 bits = 512 bits
-                ptk += hmac.new(pmk, label + data + bytes([i]), hashlib.sha1).digest()
+            # Generate PTK (512 bits = 64 bytes) using PRF-512
+            ptk = self._prf(pmk, label + data, 64)
 
-            # Extract KCK (first 16 bytes) and compute MIC
+            # Extract KCK (first 16 bytes)
             kck = ptk[:16]
 
-            # Verify MIC (simplified - would need actual EAPOL frame)
-            # For now, return False to continue searching
-            # In full implementation, would verify against actual EAPOL MIC
+            # If we have EAPOL frame, compute actual MIC
+            if eapol_frame and len(eapol_frame) >= 97:
+                computed_mic = self._compute_mic(kck, eapol_frame)
+                return computed_mic == mic
+            
+            # Without EAPOL frame, we need to reconstruct it for verification
+            # Build minimal EAPOL Key frame structure for MIC computation
+            if len(anonce) == 32 and len(snonce) == 32:
+                eapol_reconstructed = self._build_eapol_frame_for_mic(anonce, snonce, bssid, client)
+                if eapol_reconstructed:
+                    computed_mic = self._compute_mic(kck, eapol_reconstructed)
+                    return computed_mic == mic
+            
+            # Basic validation: ensure we have valid data
+            if len(kck) != 16 or len(mic) != 16:
+                return False
+            
+            # Cannot verify without EAPOL frame data
             return False
 
         except Exception as e:
             print(f"[!] PMK verification error: {e}")
             return False
+    
+    def _compute_mic(self, kck: bytes, eapol_frame: bytes) -> bytes:
+        """
+        Compute MIC for EAPOL frame using KCK.
+        
+        For WPA/WPA2, MIC is computed using HMAC-MD5 over the EAPOL Key frame
+        with the MIC field zeroed out.
+        
+        Args:
+            kck: Key Confirmation Key (first 16 bytes of PTK)
+            eapol_frame: EAPOL Key frame (will have MIC field zeroed)
+            
+        Returns:
+            16-byte MIC
+        """
+        # Zero out MIC field (bytes 81-96 in EAPOL Key frame)
+        frame_copy = bytearray(eapol_frame)
+        if len(frame_copy) >= 97:
+            # Zero out MIC field
+            frame_copy[81:97] = b'\x00' * 16
+        
+        # For WPA2, MIC is HMAC-MD5 over the entire EAPOL Key frame
+        try:
+            # Compute HMAC-MD5 over the frame with zeroed MIC
+            mic = hmac.new(kck, bytes(frame_copy), hashlib.md5).digest()[:16]
+            return mic
+        except Exception:
+            # Fallback: return empty MIC (will fail verification)
+            return b'\x00' * 16
+    
+    def _build_eapol_frame_for_mic(self, anonce: bytes, snonce: bytes, bssid: str, client: str) -> Optional[bytes]:
+        """
+        Build minimal EAPOL Key frame structure for MIC computation.
+        
+        This constructs a basic EAPOL frame structure needed for MIC verification
+        when the full frame is not available.
+        
+        Args:
+            anonce: Authenticator nonce
+            snonce: Supplicant nonce
+            bssid: AP MAC address
+            client: Client MAC address
+            
+        Returns:
+            EAPOL frame bytes or None if construction fails
+        """
+        try:
+            import struct
+            
+            # Build minimal EAPOL Key frame (message 2 or 4 with MIC)
+            frame = bytearray(97)  # Minimum size for EAPOL Key frame with MIC
+            
+            # Version (1 byte) - usually 1 or 2
+            frame[0] = 1
+            # Type (1 byte) - EAPOL-Key = 3
+            frame[1] = 3
+            # Key Descriptor Type (1 byte) - RSN/WPA2 = 2
+            frame[4] = 2
+            # Key Info (2 bytes) - set MIC bit (bit 7) and other flags
+            frame[5] = 0x01  # Key descriptor version
+            frame[6] = 0x01  # MIC bit set (bit 7 of second byte)
+            # Key Length (2 bytes) - 16 for TKIP, 16 for CCMP
+            frame[7] = 0
+            frame[8] = 16
+            # Nonce (32 bytes) - use SNonce (message 2 or 4)
+            frame[17:49] = snonce
+            # MIC (16 bytes) - will be zeroed for computation
+            frame[81:97] = b'\x00' * 16
+            # Key Data Length (2 bytes) - set to 0 for minimal frame
+            frame[97:99] = b'\x00\x00'
+            
+            # Set length field
+            frame[2:4] = struct.pack('>H', len(frame) - 4)
+            
+            return bytes(frame)
+        except Exception:
+            return None
+    
+    def _prf(self, key: bytes, data: bytes, length: int) -> bytes:
+        """
+        Pseudo-Random Function (PRF) for PTK derivation.
+        
+        PRF-512 implementation using HMAC-SHA1 as specified in IEEE 802.11i.
+        """
+        result = b''
+        i = 0
+
+        while len(result) < length:
+            hmac_data = data + bytes([i])
+            result += hmac.new(key, hmac_data, hashlib.sha1).digest()
+            i += 1
+
+        return result[:length]
 
 
 def get_quantum_accelerator() -> Optional[QuantumAccelerator]:
-    """Get or create quantum accelerator instance"""
-    if HAS_QUANTUM:
-        return QuantumAccelerator()
+    """Get or create quantum accelerator instance with graceful fallback"""
+    try:
+        if HAS_QUANTUM:
+            accel = QuantumAccelerator()
+            if accel.quantum_available:
+                return accel
+    except Exception as e:
+        print(f"[!] Quantum accelerator initialization failed: {e}")
+        print("[!] Falling back to classical computation")
     return None
 

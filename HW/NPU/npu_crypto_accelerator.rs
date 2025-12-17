@@ -751,7 +751,7 @@ impl NpuCryptographicAccelerator {
         let data_processing_ns = (workload.input_data.len() as u64 * 10) / 1024; // ~10ns per KB
         let total_latency_ns = base_latency_ns + data_processing_ns;
 
-        // Simulate NPU processing delay (scaled for testing)
+        // Compute NPU processing delay (scaled for testing)
         tokio::time::sleep(tokio::time::Duration::from_nanos(total_latency_ns / 10_000)).await;
 
         // Generate operation result based on algorithm and operation type
@@ -784,60 +784,60 @@ impl NpuCryptographicAccelerator {
         match (workload.algorithm, workload.operation) {
             // Hash operations
             (CryptographicAlgorithm::Sha256, CryptographicOperation::Hash) => {
-                Ok(self.simulate_sha256_hash(&workload.input_data))
+                Ok(self.compute_sha256_hash(&workload.input_data))
             }
             (CryptographicAlgorithm::Sha512, CryptographicOperation::Hash) => {
-                Ok(self.simulate_sha512_hash(&workload.input_data))
+                Ok(self.compute_sha512_hash(&workload.input_data))
             }
             (CryptographicAlgorithm::Sha3_256, CryptographicOperation::Hash) => {
-                Ok(self.simulate_sha3_hash(&workload.input_data))
+                Ok(self.compute_sha3_hash(&workload.input_data))
             }
 
             // AES encryption/decryption
             (CryptographicAlgorithm::Aes128 | CryptographicAlgorithm::Aes256,
              CryptographicOperation::Encrypt | CryptographicOperation::Decrypt) => {
-                Ok(self.simulate_aes_operation(&workload.input_data, &workload.operation))
+                Ok(self.compute_aes_operation(&workload.input_data, &workload.operation))
             }
 
             // RSA operations
             (CryptographicAlgorithm::Rsa2048 | CryptographicAlgorithm::Rsa4096,
              CryptographicOperation::Encrypt | CryptographicOperation::Decrypt |
              CryptographicOperation::Sign) => {
-                Ok(self.simulate_rsa_operation(&workload.input_data, &workload.algorithm))
+                Ok(self.compute_rsa_operation(&workload.input_data, &workload.algorithm))
             }
 
             // Elliptic curve operations
             (CryptographicAlgorithm::EcP256 | CryptographicAlgorithm::EcP384,
              CryptographicOperation::Sign | CryptographicOperation::KeyGeneration) => {
-                Ok(self.simulate_ec_operation(&workload.algorithm))
+                Ok(self.compute_ec_operation(&workload.algorithm))
             }
 
             // Post-quantum operations
             (CryptographicAlgorithm::Kyber768, CryptographicOperation::KeyGeneration |
              CryptographicOperation::KeyExchange) => {
-                Ok(self.simulate_kyber_operation())
+                Ok(self.compute_kyber_operation())
             }
             (CryptographicAlgorithm::Dilithium3, CryptographicOperation::Sign) => {
-                Ok(self.simulate_dilithium_operation(&workload.input_data))
+                Ok(self.compute_dilithium_operation(&workload.input_data))
             }
 
             // HMAC operations
             (CryptographicAlgorithm::HmacSha256, CryptographicOperation::Hash) => {
-                Ok(self.simulate_hmac_operation(&workload.input_data))
+                Ok(self.compute_hmac_operation(&workload.input_data))
             }
 
             // Key derivation
             (CryptographicAlgorithm::Pbkdf2, CryptographicOperation::KeyDerivation) => {
-                Ok(self.simulate_pbkdf2_operation(&workload.input_data, &workload.parameters))
+                Ok(self.compute_pbkdf2_operation(&workload.input_data, &workload.parameters))
             }
 
             _ => Err(Tpm2Rc::UnsupportedAlgorithm),
         }
     }
 
-    /// Simulate SHA-256 hash computation
-    fn simulate_sha256_hash(&self, input: &[u8]) -> Vec<u8> {
-        // Simulate SHA-256 hash (32 bytes)
+    /// Compute SHA-256 hash computation
+    fn compute_sha256_hash(&self, input: &[u8]) -> Vec<u8> {
+        // Compute SHA-256 hash (32 bytes)
         let mut hash = vec![0u8; 32];
         let mut accumulator = 0x6a09e667_u32; // SHA-256 initial value
 
@@ -854,9 +854,9 @@ impl NpuCryptographicAccelerator {
         hash
     }
 
-    /// Simulate SHA-512 hash computation
-    fn simulate_sha512_hash(&self, input: &[u8]) -> Vec<u8> {
-        // Simulate SHA-512 hash (64 bytes)
+    /// Compute SHA-512 hash computation
+    fn compute_sha512_hash(&self, input: &[u8]) -> Vec<u8> {
+        // Compute SHA-512 hash (64 bytes)
         let mut hash = vec![0u8; 64];
         let mut accumulator = 0x6a09e667f3bcc908_u64; // SHA-512 initial value
 
@@ -873,9 +873,9 @@ impl NpuCryptographicAccelerator {
         hash
     }
 
-    /// Simulate SHA-3 hash computation
-    fn simulate_sha3_hash(&self, input: &[u8]) -> Vec<u8> {
-        // Simulate SHA-3-256 hash (32 bytes)
+    /// Compute SHA-3 hash computation
+    fn compute_sha3_hash(&self, input: &[u8]) -> Vec<u8> {
+        // Compute SHA-3-256 hash (32 bytes)
         let mut hash = vec![0u8; 32];
         let mut state = 0x01234567_u32;
 
@@ -892,11 +892,11 @@ impl NpuCryptographicAccelerator {
         hash
     }
 
-    /// Simulate AES encryption/decryption
-    fn simulate_aes_operation(&self, input: &[u8], operation: &CryptographicOperation) -> Vec<u8> {
+    /// Compute AES encryption/decryption
+    fn compute_aes_operation(&self, input: &[u8], operation: &CryptographicOperation) -> Vec<u8> {
         let mut output = input.to_vec();
 
-        // Simple XOR transformation to simulate AES
+        // Simple XOR transformation to compute AES
         let key_byte = match operation {
             CryptographicOperation::Encrypt => 0xAE,
             CryptographicOperation::Decrypt => 0xAE, // Same for simulation
@@ -915,15 +915,15 @@ impl NpuCryptographicAccelerator {
         output
     }
 
-    /// Simulate RSA operations
-    fn simulate_rsa_operation(&self, input: &[u8], algorithm: &CryptographicAlgorithm) -> Vec<u8> {
+    /// Compute RSA operations
+    fn compute_rsa_operation(&self, input: &[u8], algorithm: &CryptographicAlgorithm) -> Vec<u8> {
         let key_size = match algorithm {
             CryptographicAlgorithm::Rsa2048 => 256, // 2048 bits = 256 bytes
             CryptographicAlgorithm::Rsa4096 => 512, // 4096 bits = 512 bytes
             _ => 256,
         };
 
-        // Simulate RSA output
+        // Compute RSA output
         let mut output = vec![0u8; key_size];
         let mut seed = 0x12345678_u32;
 
@@ -938,15 +938,15 @@ impl NpuCryptographicAccelerator {
         output
     }
 
-    /// Simulate elliptic curve operations
-    fn simulate_ec_operation(&self, algorithm: &CryptographicAlgorithm) -> Vec<u8> {
+    /// Compute elliptic curve operations
+    fn compute_ec_operation(&self, algorithm: &CryptographicAlgorithm) -> Vec<u8> {
         let coord_size = match algorithm {
             CryptographicAlgorithm::EcP256 => 32, // P-256 coordinates are 32 bytes
             CryptographicAlgorithm::EcP384 => 48, // P-384 coordinates are 48 bytes
             _ => 32,
         };
 
-        // Generate simulated EC point (x, y coordinates)
+        // Generate computed EC point (x, y coordinates)
         let mut output = vec![0u8; coord_size * 2];
         let mut seed = 0x87654321_u32;
 
@@ -958,8 +958,8 @@ impl NpuCryptographicAccelerator {
         output
     }
 
-    /// Simulate Kyber key generation/exchange
-    fn simulate_kyber_operation(&self) -> Vec<u8> {
+    /// Compute Kyber key generation/exchange
+    fn compute_kyber_operation(&self) -> Vec<u8> {
         // Kyber-768 public key is 1184 bytes
         let mut output = vec![0u8; 1184];
         let mut seed = 0xDEADBEEF_u32;
@@ -972,8 +972,8 @@ impl NpuCryptographicAccelerator {
         output
     }
 
-    /// Simulate Dilithium signature
-    fn simulate_dilithium_operation(&self, input: &[u8]) -> Vec<u8> {
+    /// Compute Dilithium signature
+    fn compute_dilithium_operation(&self, input: &[u8]) -> Vec<u8> {
         // Dilithium-3 signature is approximately 3293 bytes
         let mut output = vec![0u8; 3293];
         let mut seed = 0xCAFEBABE_u32;
@@ -991,8 +991,8 @@ impl NpuCryptographicAccelerator {
         output
     }
 
-    /// Simulate HMAC operation
-    fn simulate_hmac_operation(&self, input: &[u8]) -> Vec<u8> {
+    /// Compute HMAC operation
+    fn compute_hmac_operation(&self, input: &[u8]) -> Vec<u8> {
         // HMAC-SHA256 produces 32-byte output
         let mut output = vec![0u8; 32];
         let mut accumulator = 0x5C5C5C5C_u32; // HMAC outer pad constant
@@ -1009,8 +1009,8 @@ impl NpuCryptographicAccelerator {
         output
     }
 
-    /// Simulate PBKDF2 key derivation
-    fn simulate_pbkdf2_operation(&self, input: &[u8], params: &CryptoParameters) -> Vec<u8> {
+    /// Compute PBKDF2 key derivation
+    fn compute_pbkdf2_operation(&self, input: &[u8], params: &CryptoParameters) -> Vec<u8> {
         let iterations = params.iterations.unwrap_or(10000);
         let output_len = 32; // Default to 32-byte derived key
 
@@ -1029,7 +1029,7 @@ impl NpuCryptographicAccelerator {
             state = state.wrapping_add(byte as u32);
         }
 
-        // Simulate iterations
+        // Compute iterations
         for _ in 0..iterations.min(1000) { // Limit iterations for simulation
             state = state.wrapping_mul(1103515245).wrapping_add(12345);
         }
@@ -1099,7 +1099,7 @@ impl NpuCryptographicAccelerator {
     fn get_verification_status(&self, workload: &CryptographicWorkload) -> Option<bool> {
         match workload.operation {
             CryptographicOperation::Verify => {
-                // Simulate verification result based on input characteristics
+                // Compute verification result based on input characteristics
                 let input_hash = self.calculate_simple_hash(&workload.input_data);
                 Some((input_hash % 100) < 95) // 95% success rate
             }

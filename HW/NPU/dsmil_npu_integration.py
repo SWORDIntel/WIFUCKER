@@ -113,15 +113,23 @@ class DSMILNPUIntegration:
 
         try:
             # Import DSMIL framework modules
-            from dsmil_military_mode import DSMILMilitaryMode
-            from dsmil_ai_engine import DSMILAIEngine
+            # Add ai package to path if not already there
+            import sys
+            from pathlib import Path
+            script_dir = Path(__file__).parent
+            root_dir = script_dir.parent.parent.parent.parent  # Go up to DSMILSystem root
+            if str(root_dir) not in sys.path:
+                sys.path.insert(0, str(root_dir))
+            
+            from ai.integrations.security.military import DSMILMilitaryMode
+            from ai.integrations.engines.engine import DSMILAIEngine
 
             self.dsmil_military_mode = DSMILMilitaryMode()
             self.dsmil_ai_engine = DSMILAIEngine()
             logger.info("✓ DSMIL framework modules imported")
-        except ImportError:
-            logger.warning("⚠️  DSMIL framework modules not available")
-            logger.info("   Install from: /home/user/LAT5150DRVMIL/packaging/")
+        except ImportError as e:
+            logger.warning(f"⚠️  DSMIL framework modules not available: {e}")
+            logger.info("   Ensure ai package is in Python path")
 
     def check_dsmil_framework(self) -> Dict:
         """Check DSMIL framework status"""
@@ -260,7 +268,7 @@ class DSMILNPUIntegration:
         """Detect and configure military NPU (if present)"""
         logger.info("\nDetecting Military NPU...")
 
-        # Military NPU would be integrated with DSMIL device 12
+        # Military NPU integration with DSMIL device 12
         if not self.dsmil_available:
             logger.info("  DSMIL framework not available")
             logger.info("  Military NPU requires DSMIL integration")
